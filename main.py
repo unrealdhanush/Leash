@@ -6,9 +6,10 @@ from leash.client import AirwallexClient, new_request_id
 from leash.policy import Policy, Quote, card_controls, decide
 from leash.sandbox import CardSimulator
 
+SAAS_MCC = "5734"  # Computer Software Stores
 QUOTES = [
-    Quote(name="monthly", charge=1000.00, charges_per_year=12, currency="USD"),
-    Quote(name="annual", charge=9840.00, charges_per_year=1, currency="USD"),  # 18% off 12 x 1000
+    Quote(name="monthly", charge=1000.00, charges_per_year=12, currency="USD", merchant_category=SAAS_MCC),
+    Quote(name="annual", charge=9840.00, charges_per_year=1, currency="USD", merchant_category=SAAS_MCC),  # 18% off 12 x 1000
 ]
 POLICY = Policy(auto_approve_max=5000.00, reserve_floor=50000.00)
 
@@ -75,15 +76,19 @@ def main():
     card_id = issue_card(client, cardholder_id, quote, created_by)
     print(f"Card issued: {card_id}")
 
+    # Declines first: the at-limit charge uses up the month's limit.
     sim = CardSimulator(client)
-    for label, amount, should_clear in [
-        ("over limit", round(quote.charge + 0.01, 2), False),
-        ("at limit", quote.charge, True),
+    mcc = quote.merchant_category
+    for label, amount, currency, merchant_category, expected_failure in [
+        ("over limit", round(quote.charge + 0.01, 2), quote.currency, mcc, "LIMIT_EXCEEDED"),
+        ("wrong currency", 10.00, "EUR", mcc, "CURRENCY_NOT_ALLOWED"),
+        ("wrong merchant", 10.00, quote.currency, "5812", "MERCHANT_CATEGORY_NOT_ALLOWED"),  # restaurant
+        ("at limit", quote.charge, quote.currency, mcc, None),
     ]:
-        result = sim.authorize(card_id, amount, quote.currency)
+        result = sim.authorize(card_id, amount, currency, merchant_category)
         outcome = "cleared" if result.accepted else f"declined ({result.failure_reason})"
-        check = "as expected" if result.accepted == should_clear else "UNEXPECTED"
-        print(f"  {label:10} {amount:>10,.2f} -> {outcome} [{check}]")
+        check = "as expected" if result.failure_reason == expected_failure else "UNEXPECTED"
+        print(f"  {label:14} {amount:>10,.2f} {currency} MCC {merchant_category} -> {outcome} [{check}]")
 
     limits = client.get(f"/api/v1/issuing/cards/{card_id}/limits")
     print("Remaining limits:")

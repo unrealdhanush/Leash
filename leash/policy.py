@@ -9,6 +9,7 @@ class Quote:
     charge: float  # amount of each charge, major units
     charges_per_year: int
     currency: str
+    merchant_category: str  # vendor's Visa MCC
 
     @property
     def annual_cost(self) -> float:
@@ -64,11 +65,12 @@ def decide(quotes: list[Quote], cash_available: float, policy: Policy) -> Decisi
 
 
 def card_controls(quote: Quote) -> dict:
-    """Card authorization_controls that allow exactly one charge per billing period."""
+    """Card authorization_controls that allow one charge per billing period, at this vendor's MCC and currency only."""
     interval = "MONTHLY" if quote.charges_per_year == 12 else "ALL_TIME"
     return {
         "allowed_transaction_count": "MULTIPLE" if quote.charges_per_year > 1 else "SINGLE",
         "allowed_currencies": [quote.currency],
+        "allowed_merchant_categories": [quote.merchant_category],
         "transaction_limits": {
             "currency": quote.currency,
             "limits": [
