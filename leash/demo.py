@@ -9,8 +9,10 @@ from leash import cards, treasury
 from leash.agent import Agent
 from leash.approval import Approval, covers, terms_digest
 from leash.client import AirwallexClient
+from leash.merchant import MockMerchant, place_order, sign_checkout
 from leash.policy import Assessment, CashFlow, Policy, Quote, assess, decide
 from leash.sandbox import CardSimulator
+from leash.tap import BROWSE, AgentIdentity, KeyDirectory, Verifier
 
 QUOTES_DIR = Path(__file__).resolve().parent.parent / "quotes"
 SAAS_MCC = "5734"  # Computer Software Stores
@@ -53,6 +55,7 @@ class Demo:
         self.issue_card()
         self.vendor_charges()
         self.price_increase()
+        self.checkout()
         self.invoice_slips()
         self.deposit_lands()
 
@@ -139,10 +142,24 @@ class Demo:
         cards.update_limits(self.client, self.card_id, new)
         self.quote = new
         self.emit("card_updated", card_id=self.card_id, quote=_quote(new), approval=approval.digest[:12])
-        self._charge("vendor retries at the new price", new.charge, new.currency, new.merchant_category, None)
+
+    def checkout(self) -> None:
+        """The merchant asks who the agent is (Visa TAP); the card still decides what it may spend."""
+        self.emit("scene", title="6. Checkout: the merchant verifies the agent (Visa Trusted Agent Protocol)")
+        identity, directory = AgentIdentity(), KeyDirectory()
+        directory.register(identity)
+        self.emit("info", text=f"Agent key {identity.keyid} (Ed25519) registered in the key directory.")
+        order = {"card_id": self.card_id, "amount": self.quote.charge, "currency": self.quote.currency}
+        with MockMerchant(Verifier(directory), self.sim, self.quote.merchant_category) as shop:
+            signed = sign_checkout(identity, shop.authority)
+            self._order(shop, "unsigned request", {}, order, expect_ok=False)
+            self._order(shop, "rogue agent (unknown key)", sign_checkout(AgentIdentity(), shop.authority), order, expect_ok=False)
+            self._order(shop, "our agent, browsing intent only", sign_checkout(identity, shop.authority, BROWSE), order, expect_ok=False)
+            self._order(shop, "our agent, signed intent to pay", signed, order, expect_ok=True)
+            self._order(shop, "replay of that exact request", signed, order, expect_ok=False)
 
     def invoice_slips(self) -> None:
-        self.emit("scene", title="6. A customer invoice will land late")
+        self.emit("scene", title="7. A customer invoice will land late")
         late = replace(INVOICE, week=12)
         plan = [late if f is INVOICE else f for f in CASH_PLAN]
         self.emit("info", text=f"{INVOICE.label} moves from week {INVOICE.week} to week {late.week}.")
@@ -157,7 +174,7 @@ class Demo:
         self._charge("vendor bills while frozen", self.quote.charge, self.quote.currency, self.quote.merchant_category, "any")
 
     def deposit_lands(self) -> None:
-        self.emit("scene", title="7. The deposit lands")
+        self.emit("scene", title="8. The deposit lands")
         account = treasury.global_account_id(self.client, POLICY.currency)
         deposit = treasury.simulate_deposit(self.client, account, INVOICE.amount, "Acme Corp", "INV-2041")
         self.emit("deposit", amount=deposit.get("amount", INVOICE.amount), currency=POLICY.currency, payer="Acme Corp", status=deposit.get("status"))
@@ -179,6 +196,21 @@ class Demo:
         approved = self.ask(request)
         self.emit("approval_result", approved=approved, approver=self.config.approver)
         return Approval(digest=request["digest"], approver=self.config.approver) if approved else None
+
+    def _order(self, shop: MockMerchant, label: str, headers: dict, order: dict, expect_ok: bool) -> None:
+        status, body = place_order(shop.authority, headers, order)
+        verified = status == 200
+        self.emit(
+            "checkout",
+            label=label,
+            amount=order["amount"],
+            currency=order["currency"],
+            verified=verified,
+            rejection=body.get("error"),
+            accepted=body.get("accepted", False),
+            failure_reason=body.get("failure_reason"),
+            as_expected=verified == expect_ok and (not verified or body.get("accepted", False)),
+        )
 
     def _charge(self, label: str, amount: float, currency: str, mcc: str, expected_failure: str | None) -> None:
         result = self.sim.authorize(self.card_id, amount, currency, mcc)

@@ -57,6 +57,15 @@ def render(kind: str, **e) -> None:
         outcome = f"{GREEN}cleared{RESET}" if e["accepted"] else f"{RED}declined {e['failure_reason']}{RESET}"
         check = "" if e["as_expected"] else f"  {RED}UNEXPECTED{RESET}"
         print(f"    {e['label']:32} {e['amount']:>10,.2f} {e['currency']} MCC {e['merchant_category']}  {outcome}{check}")
+    elif kind == "checkout":
+        if not e["verified"]:
+            outcome = f"{RED}rejected by merchant: {e['rejection']}{RESET}"
+        elif e["accepted"]:
+            outcome = f"{GREEN}verified · card charged{RESET}"
+        else:
+            outcome = f"{RED}verified · card declined {e['failure_reason']}{RESET}"
+        check = "" if e["as_expected"] else f"  {RED}UNEXPECTED{RESET}"
+        print(f"    {e['label']:34} {e['amount']:>10,.2f} {e['currency']}  {outcome}{check}")
     elif kind == "deposit":
         print(f"  Deposit from {e['payer']}: {e['amount']:,.2f} {e['currency']} ({e['status']})")
     elif kind == "limits":

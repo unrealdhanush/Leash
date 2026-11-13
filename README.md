@@ -8,7 +8,7 @@ Built for the Airwallex Agentic Banking Hackathon (Track 2: Intent-Bound Purchas
 
 ## The demo
 
-`main.py` runs seven scenes against the live sandbox:
+`main.py` runs eight scenes against the live sandbox:
 
 | Scene | What happens | Airwallex |
 |---|---|---|
@@ -17,9 +17,12 @@ Built for the Airwallex Agentic Banking Hackathon (Track 2: Intent-Bound Purchas
 | 2. Escalate | The cheaper annual plan goes to a human, bound to its exact terms | |
 | 3. Issue the card | Virtual card: 1,000 per charge and per month, USD only, software merchants (MCC 5734) only | Cardholders, cards |
 | 4. Declines | Over the limit, wrong currency and a restaurant charge are each declined with their own reason | Issuing simulations |
-| 5. Price rise | The vendor emails a new price and bills it: declined. The agent re-reads, re-checks policy and asks for approval bound to the new terms, then raises the card limit; the retry clears at exactly the new limit | Card update |
-| 6. Late invoice | A 60,000 customer invoice slips three weeks; the forecast now breaks the reserve, so the agent freezes the card and the next charge is declined | Card update (freeze) |
-| 7. Deposit lands | The invoice is paid into the global account; the forecast recovers and the agent unfreezes the card | Deposit simulation, limits |
+| 5. Price rise | The vendor emails a new price and bills it: declined. The agent re-reads, re-checks policy and asks for approval bound to the new terms, then raises the card limit | Card update |
+| 6. Checkout (Visa) | The agent signs its checkout with the Visa Trusted Agent Protocol. The merchant rejects an unsigned request, a rogue agent's key, browse-only intent and a replay; it charges the card only for our agent's signed intent to pay, which clears at exactly the card's limit | Issuing simulation |
+| 7. Late invoice | A 60,000 customer invoice slips three weeks; the forecast now breaks the reserve, so the agent freezes the card and the next charge is declined | Card update (freeze) |
+| 8. Deposit lands | The invoice is paid into the global account; the forecast recovers and the agent unfreezes the card | Deposit simulation, limits |
+
+Who is this agent: Visa. What is it allowed to spend: Airwallex.
 
 ## Setup
 
@@ -55,10 +58,18 @@ Each run issues a new card and moves sandbox money: the setup step converts USD 
 | `leash/approval.py` | Approvals as a hash of vendor and terms; any change to the terms needs a new approval |
 | `leash/cards.py` | Cardholder, card issuing, limit updates, freeze and unfreeze |
 | `leash/treasury.py` | Balances, demo cash setup, global account deposits |
+| `leash/tap.py` | Visa Trusted Agent Protocol: RFC 9421 Ed25519 signatures over `@authority` and `@path` with `created`, `expires`, `keyid`, `alg`, `nonce` and `tag`, and the merchant's checks (8-minute window, nonce replay, key lookup, `agent-payer-auth` intent) |
+| `leash/merchant.py` | Mock vendor checkout on localhost: verifies the agent, then charges the Airwallex card |
 | `leash/sandbox.py` | Card transaction simulations, behind one interface so they can be swapped out |
 | `leash/client.py` | Airwallex REST client: token caching, one `request_id` per create reused on retries |
 | `leash/demo.py` | The scenes. Emits events and asks for approvals through callbacks, so a UI can drive the same flow |
 | `main.py` | Terminal renderer and JSON event stream |
+
+## What is simulated
+
+- **Visa key directory.** Visa's real key store needs partner credentials, so `KeyDirectory` stands in for it. Signatures and checks follow Visa's published merchant requirements for the Trusted Agent Protocol. The agentic payment container is not implemented; the order carries the Airwallex card ID instead.
+- **The vendor.** Northwind Analytics, its emails and its checkout are made up. Card charges are Airwallex issuing simulations.
+- **The cash plan.** Payroll, revenue and the customer invoice are a fixed plan in `leash/demo.py`; the starting balance is live.
 
 ## Sandbox notes
 
