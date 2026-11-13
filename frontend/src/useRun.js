@@ -1,64 +1,69 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api.js";
+import { ACTIVE } from "./format.js";
 
-// Polls the backend run and accumulates its event stream.
-export function useRun() {
+// Loads one run and, while it is live, receives its events over a server-sent event stream.
+export function useRun(id) {
   const [run, setRun] = useState(null);
   const [events, setEvents] = useState([]);
   const [error, setError] = useState(null);
-  const count = useRef(0);
-  const runId = useRef(null);
-
-  const absorb = useCallback((snap, reset) => {
-    if (!snap) return;
-    if (reset) {
-      count.current = 0;
-      runId.current = snap.id;
-      setEvents([]);
-    }
-    if (snap.events.length) {
-      count.current = snap.after + snap.events.length;
-      setEvents((prev) => (reset ? snap.events : [...prev, ...snap.events]));
-    }
-    setRun(snap);
-  }, []);
 
   useEffect(() => {
-    api.latest().then((snap) => absorb(snap, true)).catch((e) => setError(e.message));
-  }, [absorb]);
-
-  useEffect(() => {
-    const active = run && (run.status === "running" || run.status === "waiting_approval");
-    if (!active) return;
-    const t = setInterval(async () => {
-      try {
-        const snap = await api.poll(runId.current, count.current);
-        if (snap.id === runId.current) absorb(snap, false);
-      } catch (e) {
-        setError(e.message === "run not found" ? "The server restarted and this run was lost. Start a new run." : e.message);
-        if (e.message === "run not found") setRun((r) => ({ ...r, status: "failed" }));
-      }
-    }, 700);
-    return () => clearInterval(t);
-  }, [run?.status, absorb]);
-
-  const start = async (auto) => {
+    let source;
+    let gone = false;
+    setRun(null);
+    setEvents([]);
     setError(null);
-    try {
-      absorb(await api.start(auto), true);
-    } catch (e) {
-      setError(e.message);
-    }
-  };
+
+    const refresh = () =>
+      api.run(id).then((snap) => {
+        if (gone) return;
+        setRun(snap);
+        setEvents(snap.events);
+      });
+
+    api.run(id).then((snap) => {
+      if (gone) return;
+      setRun(snap);
+      setEvents(snap.events);
+      if (!ACTIVE.includes(snap.status)) return;
+
+      let count = snap.events.length;
+      source = new EventSource(api.streamUrl(id, count));
+      source.addEventListener("leash", (m) => {
+        const n = Number(m.lastEventId);
+        if (n !== count + 1) return;
+        count = n;
+        const event = JSON.parse(m.data);
+        setEvents((prev) => [...prev, event]);
+      });
+      source.addEventListener("state", (m) => {
+        const state = JSON.parse(m.data);
+        setRun((r) => ({ ...r, ...state }));
+        if (!ACTIVE.includes(state.status)) {
+          source.close();
+          refresh();
+        }
+      });
+      source.onerror = () => {
+        if (source.readyState === EventSource.CLOSED) refresh().catch((e) => setError(e.message));
+      };
+    }).catch((e) => setError(e.message === "run not found" ? "This purchase does not exist." : e.message));
+
+    return () => {
+      gone = true;
+      source?.close();
+    };
+  }, [id]);
 
   const decide = async (approved, digest) => {
     try {
-      await api.decide(runId.current, approved, digest);
-      setRun((r) => ({ ...r, pending: null, status: "running" }));
+      await api.decide(id, approved, digest);
+      setRun((r) => ({ ...r, pending: null }));
     } catch (e) {
       setError(e.message);
     }
   };
 
-  return { run, events, error, start, decide };
+  return { run, events, error, decide };
 }

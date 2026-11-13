@@ -12,8 +12,10 @@ async function call(path, options = {}) {
 
 export const api = {
   health: () => call("/health"),
-  latest: () => call("/runs/latest"),
+  context: () => call("/context"),
+  runs: () => call("/runs"),
+  run: (id) => call(`/runs/${id}`),
   start: (auto) => call("/runs", { method: "POST", body: JSON.stringify({ auto }) }),
-  poll: (id, after) => call(`/runs/${id}?after=${after}`),
+  streamUrl: (id, after) => `${BASE}/runs/${id}/stream?after=${after}`,
   decide: (id, approved, digest) => call(`/runs/${id}/approval`, { method: "POST", body: JSON.stringify({ approved, digest }) }),
 };

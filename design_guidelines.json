@@ -1,72 +1,123 @@
 {
   "theme": "dark",
+  "instructions_to_main_agent": [
+    "CRITICAL: You MUST use plain CSS and React only. DO NOT install or use Tailwind CSS, Shadcn, or any UI frameworks.",
+    "Write pure CSS classes in src/index.css and apply them via className in .jsx files.",
+    "Keep all existing CSS variables intact and use them exclusively for colors.",
+    "Adhere strictly to the requested layouts and functionalities. DO NOT alter the existing color palette.",
+    "You have .js or .jsx files, do not use TypeScript (.tsx)."
+  ],
   "typography": {
-    "headings": "Inter, sans-serif",
-    "body": "Inter, sans-serif",
-    "mono": "JetBrains Mono, SF Mono, monospace (critical for event logs, raw JSON stream, card IDs, and financial figures)"
-  },
-  "colors": {
-    "background": "#09090B",
-    "surface": "#18181B",
-    "surface_elevated": "#27272A",
-    "border": "#27272A",
-    "border_focus": "#3F3F46",
-    "text_primary": "#FAFAFA",
-    "text_secondary": "#A1A1AA",
-    "accent_primary": "#3B82F6",
-    "status": {
-      "approved": "#10B981",
-      "declined": "#EF4444",
-      "expected": "#10B981",
-      "unexpected": "#F97316",
-      "frozen": "#6366F1",
-      "active": "#10B981"
+    "fonts": {
+      "headings": "Fraunces, serif",
+      "body": "'IBM Plex Sans', sans-serif",
+      "monospace": "'JetBrains Mono', monospace"
+    },
+    "rules": [
+      "Headings use Fraunces, giving a classic, editorial finance feel.",
+      "Body text uses IBM Plex Sans for functional clarity.",
+      "Numbers, data points, statuses, and JSON logs MUST use JetBrains Mono."
+    ],
+    "css_classes_to_create": {
+      ".text-h1": "font-family: Fraunces, serif; font-size: clamp(2.5rem, 5vw, 4rem); letter-spacing: -0.02em; line-height: 1.1; font-weight: 300;",
+      ".text-h2": "font-family: Fraunces, serif; font-size: 2rem; letter-spacing: -0.01em; line-height: 1.2; font-weight: 400;",
+      ".text-h3": "font-family: Fraunces, serif; font-size: 1.5rem; font-weight: 400;",
+      ".text-body": "font-family: 'IBM Plex Sans', sans-serif; font-size: 1rem; line-height: 1.5; color: var(--text);",
+      ".text-mono": "font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; letter-spacing: -0.01em;",
+      ".text-dim": "color: var(--dim);"
     }
   },
-  "visual_enhancers": {
-    "borders": "1px solid #27272A (Hard, crisp borders to define sections without muddy shadows)",
-    "radius": "0.25rem (4px) to 0.5rem (8px). Keep it sharp and utilitarian, suitable for a fintech ops console.",
-    "shadows": "None or extremely minimal. Rely on borders and background lightness for hierarchy."
+  "colors": {
+    "instructions": "Use ONLY these CSS variables. Do not use hex codes directly.",
+    "tokens": {
+      "--bg": "#0b0d10",
+      "--surface": "#12161c",
+      "--surface-2": "#181d24",
+      "--line": "#232932",
+      "--text": "#e8eaed",
+      "--dim": "#8b949e",
+      "--accent": "#c8f169",
+      "--ok": "#5fd3a5",
+      "--bad": "#e5484d",
+      "--warn": "#f2994a",
+      "--frozen": "#8e9bff"
+    }
   },
   "layouts": {
-    "main_structure": "Dashboard Layout. Top: Action Bar (Start Run Button, Auto-Approve Toggle Switch, Run Summary). Content: 2-Column asymmetrical grid (e.g., 65% left, 35% right).",
-    "left_column": "Live Event Timeline. Group events by the 8 scenes. Use distinct timeline nodes. Handle charge and checkout result rows natively here with clear 'EXPECTED' or 'UNEXPECTED' badges.",
-    "right_column": "Sticky Ops Panel. Contains: 1. Card Status Panel (Card ID, Limit, Status: Active/Frozen), 2. Cash Forecast Chart, 3. Live Approval Action Modal/Panel (appears when manual intervention is needed).",
-    "data_density": "High density. Padding should be tighter (p-3 to p-4) in data tables and logs. Avoid massive empty spaces."
+    "landing_page": {
+      "route": "/",
+      "structure": [
+        "Hero Section: Immersive full height, background image with heavy dark gradient overlay (background: linear-gradient(to bottom, rgba(11,13,16,0.6), var(--bg))). Massive Fraunces H1: 'The AI Purchasing Agent for Finance'. Accent button 'Enter App'.",
+        "How It Works Grid: A CSS grid displaying 4 core features (Quote Parsing, Policy Checks, Virtual Cards, Auto-Approvals) with plain CSS cards (.surface-card).",
+        "Footer: Minimalist, links and logo."
+      ]
+    },
+    "purchases_home": {
+      "route": "/app",
+      "structure": [
+        "Top Nav: Brand name (Fraunces) and 'Run History'.",
+        "Main Split View (.grid-split): Left column for 'New Purchase' form. Right column for 'Run History' list.",
+        "New Purchase Form: Shows a mock vendor quote email, spending policy rules, and an approval mode toggle (I approve each one / auto answers). 'Start Agent' button.",
+        "Run History List: Rows of past runs displaying Vendor, Plan, Status, Card State. Include checkboxes to select exactly 2 runs for comparison. 'Compare Selected' button appears when 2 are selected."
+      ]
+    },
+    "purchase_detail": {
+      "route": "/app/purchases/:id",
+      "structure": [
+        "Three-pane layout using CSS Grid (.layout-3-pane: grid-template-columns: 250px 1fr 320px; gap: 2rem; align-items: start;).",
+        "Left Pane (Sticky): 'Scene Jump Menu' - list of 8 chapters. Highlights the active chapter currently playing.",
+        "Middle Pane: 'Live Stream Timeline'. Rendered grouped by chapter. Each chapter has a Plain-language title (Fraunces), a one-line explanation, and the original scene title (Mono, dimmed). Timeline events stream in beneath.",
+        "Right Pane (Sticky): 'Context Panel'. Contains Approval actions (only visible when a charge exceeds policy or price rises), Virtual Card visualization, and Cash Forecast Chart (Recharts). Tabs for Timeline / Raw JSON."
+      ]
+    },
+    "compare_runs": {
+      "route": "/app/compare",
+      "structure": [
+        "Top Bar: Back button to /app, Title 'Comparing Runs'.",
+        "Split Screen (.grid-2-cols: grid-template-columns: 1fr 1fr; gap: 2rem;).",
+        "Each Column: Displays the timeline, chosen plan, approvals asked, and card limits for that run. Use a subtle var(--surface-2) background on rows that represent differences between the runs."
+      ]
+    }
   },
   "components": {
-    "shadcn_ui": ["Card", "Badge", "Button", "Switch", "ScrollArea", "Tabs", "Table", "Dialog"],
-    "chart": "Recharts. LineChart or AreaChart for 12-week cash forecast. MUST include a distinct ReferenceLine for the 25,000 reserve floor.",
-    "badges": "Pill-shaped badges for states. UNEXPECTED must be highly visible (e.g., bg-orange-500/20 text-orange-500 border border-orange-500)."
+    "LiveTimeline": "Use a vertical line on the left (border-left: 1px solid var(--line)). Events are placed with relative positioning. Animate new events with opacity and transform (translateY).",
+    "SceneJumpMenu": "A list of anchor links acting as a table of contents. Inactive links use var(--dim). Active link uses color: var(--accent) and border-left: 2px solid var(--accent).",
+    "VirtualCard": "A container simulating a credit card. padding: 1.5rem; border-radius: 12px; background: linear-gradient(135deg, var(--surface-2), var(--surface)); border: 1px solid var(--line). Display limit in mono. If frozen, add box-shadow: 0 0 15px rgba(142, 155, 255, 0.3) and border-color: var(--frozen).",
+    "ApprovalPanel": "If status is 'waiting for human', show a card with 'Approve' (.btn-ok) and 'Decline' (.btn-bad) buttons.",
+    "ForecastChart": "Use Recharts LineChart. Line stroke=var(--text). Add a ReferenceLine at y=25000 (Reserve Floor) colored var(--bad).",
+    "Card/Surface": ".surface-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1.5rem; }"
   },
   "motion": {
-    "events": "New timeline events should slide in subtly from the top/bottom depending on stream direction.",
-    "hover": "Row highlight on hover (bg-zinc-900) for better readability in data-heavy views."
+    "rules": [
+      "NO universal transition: all.",
+      "Use specific transitions: transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease, border-color 0.2s ease.",
+      "Button hover: transform: translateY(-1px); filter: brightness(1.1);",
+      "Live Streaming: When a new event arrives, apply an entrance animation. @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }"
+    ]
   },
   "accessibility": {
-    "contrast": "Strict APCA/WCAG AA adherence. Financial numbers must be highly legible.",
-    "data_testid": "MANDATORY on all interactive elements (buttons, switches, approval actions, raw json toggle)."
+    "rules": [
+      "All buttons/links MUST have clear focus outlines (outline: 2px solid var(--accent); outline-offset: 2px).",
+      "Include data-testid on all interactive and key informational elements (e.g., data-testid='approve-button', data-testid='jump-link-1').",
+      "Ensure text contrast against var(--surface) meets WCAG AA."
+    ]
   },
-  "instructions_to_main_agent": [
-    "Use JavaScript (.js/.jsx) instead of TypeScript.",
-    "The application is a Fintech Ops Console wrapping a CLI. Prioritize data legibility, structured logs, and swift interactions.",
-    "Implement a 'Raw JSON vs Visual UI' toggle (Tabs) so the user can switch between the beautiful UI and the raw `--json` event stream.",
-    "Build a persistent Card Status panel (Card ID, limit, frozen/active state). Updates to this panel should be driven by events (e.g., Scene 3, Scene 7).",
-    "Integrate Recharts for the cash forecast per option in Scene 1. Plot the 12-week balances against the reserve floor (25,000).",
-    "Approval Logic: If 'Auto' toggle is OFF, the event stream must pause at approval steps (Scene 2, Scene 5). Display a prominent Approval Panel (or Dialog) with vendor, terms, reasons, and Approve/Decline buttons.",
-    "Make sure Scene 1 explicitly handles and renders the two options (monthly 1,000 and annual 9,840) alongside Claude's explanation.",
-    "Highlight rows matching 'UNEXPECTED' with a prominent warning badge. The Run Summary should count these.",
-    "Ensure the UI gracefully handles the 8 distinct scenes, visually grouping events under their respective scene headers."
-  ],
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "You tend to converge toward generic, 'on distribution' outputs. Avoid this: make creative, distinctive frontends.",
-    "Do not use dark colors as gradients.",
-    "Do not make generic centered layouts. Left-align dense data and ops console text.",
-    "Create depth through layered design elements (borders + z-index).",
-    "DO NOT use complete `transparent` background in headers, overlays, or any surface that has content under it.",
-    "You MUST NOT apply universal transition (`transition: all`). Add transitions for specific properties.",
-    "You MUST NOT center align the app container (`.App { text-align: center; }`).",
-    "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., `data-testid='start-run-btn'`).",
-    "Use `sonner` for toasts."
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.pexels.com/photos/27141316/pexels-photo-27141316.jpeg",
+        "description": "Futuristic graphs and abstract dark data interface.",
+        "category": "landing_page_hero_background",
+        "instructions": "Use as a background image on the hero section with a heavy dark overlay so text remains highly readable."
+      }
+    ]
+  },
+  "general_ui_ux_design_guidelines": [
+    "Optical alignment over geometrical alignment. Adjust paddings visually.",
+    "Generous Spacing: Use rem units for spacing. Avoid cramped UI (e.g., gap: 2rem).",
+    "Do NOT center align the app container. Content should be left-aligned for a technical, precise feel.",
+    "Use layered z-index hierarchy. --bg is base, --surface is elevated, --surface-2 is top level.",
+    "Never use purely transparent backgrounds on floating elements or dropdowns; use var(--surface) with a var(--line) border.",
+    "Buttons should be modern, pill-shaped or slightly rounded, utilizing var(--accent) for primary actions."
   ]
 }
