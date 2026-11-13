@@ -1,0 +1,72 @@
+{
+  "theme": "dark",
+  "typography": {
+    "headings": "Inter, sans-serif",
+    "body": "Inter, sans-serif",
+    "mono": "JetBrains Mono, SF Mono, monospace (critical for event logs, raw JSON stream, card IDs, and financial figures)"
+  },
+  "colors": {
+    "background": "#09090B",
+    "surface": "#18181B",
+    "surface_elevated": "#27272A",
+    "border": "#27272A",
+    "border_focus": "#3F3F46",
+    "text_primary": "#FAFAFA",
+    "text_secondary": "#A1A1AA",
+    "accent_primary": "#3B82F6",
+    "status": {
+      "approved": "#10B981",
+      "declined": "#EF4444",
+      "expected": "#10B981",
+      "unexpected": "#F97316",
+      "frozen": "#6366F1",
+      "active": "#10B981"
+    }
+  },
+  "visual_enhancers": {
+    "borders": "1px solid #27272A (Hard, crisp borders to define sections without muddy shadows)",
+    "radius": "0.25rem (4px) to 0.5rem (8px). Keep it sharp and utilitarian, suitable for a fintech ops console.",
+    "shadows": "None or extremely minimal. Rely on borders and background lightness for hierarchy."
+  },
+  "layouts": {
+    "main_structure": "Dashboard Layout. Top: Action Bar (Start Run Button, Auto-Approve Toggle Switch, Run Summary). Content: 2-Column asymmetrical grid (e.g., 65% left, 35% right).",
+    "left_column": "Live Event Timeline. Group events by the 8 scenes. Use distinct timeline nodes. Handle charge and checkout result rows natively here with clear 'EXPECTED' or 'UNEXPECTED' badges.",
+    "right_column": "Sticky Ops Panel. Contains: 1. Card Status Panel (Card ID, Limit, Status: Active/Frozen), 2. Cash Forecast Chart, 3. Live Approval Action Modal/Panel (appears when manual intervention is needed).",
+    "data_density": "High density. Padding should be tighter (p-3 to p-4) in data tables and logs. Avoid massive empty spaces."
+  },
+  "components": {
+    "shadcn_ui": ["Card", "Badge", "Button", "Switch", "ScrollArea", "Tabs", "Table", "Dialog"],
+    "chart": "Recharts. LineChart or AreaChart for 12-week cash forecast. MUST include a distinct ReferenceLine for the 25,000 reserve floor.",
+    "badges": "Pill-shaped badges for states. UNEXPECTED must be highly visible (e.g., bg-orange-500/20 text-orange-500 border border-orange-500)."
+  },
+  "motion": {
+    "events": "New timeline events should slide in subtly from the top/bottom depending on stream direction.",
+    "hover": "Row highlight on hover (bg-zinc-900) for better readability in data-heavy views."
+  },
+  "accessibility": {
+    "contrast": "Strict APCA/WCAG AA adherence. Financial numbers must be highly legible.",
+    "data_testid": "MANDATORY on all interactive elements (buttons, switches, approval actions, raw json toggle)."
+  },
+  "instructions_to_main_agent": [
+    "Use JavaScript (.js/.jsx) instead of TypeScript.",
+    "The application is a Fintech Ops Console wrapping a CLI. Prioritize data legibility, structured logs, and swift interactions.",
+    "Implement a 'Raw JSON vs Visual UI' toggle (Tabs) so the user can switch between the beautiful UI and the raw `--json` event stream.",
+    "Build a persistent Card Status panel (Card ID, limit, frozen/active state). Updates to this panel should be driven by events (e.g., Scene 3, Scene 7).",
+    "Integrate Recharts for the cash forecast per option in Scene 1. Plot the 12-week balances against the reserve floor (25,000).",
+    "Approval Logic: If 'Auto' toggle is OFF, the event stream must pause at approval steps (Scene 2, Scene 5). Display a prominent Approval Panel (or Dialog) with vendor, terms, reasons, and Approve/Decline buttons.",
+    "Make sure Scene 1 explicitly handles and renders the two options (monthly 1,000 and annual 9,840) alongside Claude's explanation.",
+    "Highlight rows matching 'UNEXPECTED' with a prominent warning badge. The Run Summary should count these.",
+    "Ensure the UI gracefully handles the 8 distinct scenes, visually grouping events under their respective scene headers."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Avoid this: make creative, distinctive frontends.",
+    "Do not use dark colors as gradients.",
+    "Do not make generic centered layouts. Left-align dense data and ops console text.",
+    "Create depth through layered design elements (borders + z-index).",
+    "DO NOT use complete `transparent` background in headers, overlays, or any surface that has content under it.",
+    "You MUST NOT apply universal transition (`transition: all`). Add transitions for specific properties.",
+    "You MUST NOT center align the app container (`.App { text-align: center; }`).",
+    "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., `data-testid='start-run-btn'`).",
+    "Use `sonner` for toasts."
+  ]
+}

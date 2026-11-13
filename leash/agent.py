@@ -1,6 +1,7 @@
 """The model's two jobs: read a vendor quote, and explain a decision made in code. It decides nothing."""
 
 import json
+import os
 import re
 
 import anthropic
@@ -8,7 +9,15 @@ from pydantic import BaseModel, Field
 
 from leash.policy import Quote
 
-MODEL = "claude-opus-5-5"
+# Live uses ANTHROPIC_API_KEY directly; preview/testing without it goes through the Emergent key proxy.
+USE_EMERGENT = not os.environ.get("ANTHROPIC_API_KEY") and bool(os.environ.get("EMERGENT_LLM_KEY"))
+MODEL = os.environ["EMERGENT_LLM_MODEL"] if USE_EMERGENT else "claude-opus-5-5"
+
+
+def _default_client() -> anthropic.Anthropic:
+    if USE_EMERGENT:
+        return anthropic.Anthropic(auth_token=os.environ["EMERGENT_LLM_KEY"], base_url=os.environ["EMERGENT_LLM_BASE_URL"])
+    return anthropic.Anthropic()
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
@@ -31,7 +40,7 @@ class ReadError(Exception):
 
 class Agent:
     def __init__(self, client: anthropic.Anthropic | None = None):
-        self._client = client or anthropic.Anthropic()
+        self._client = client or _default_client()
 
     def read_quote(self, text: str, merchant_category: str) -> tuple[str, list[Quote]]:
         """Extract billing options, then check every price against the source text."""
