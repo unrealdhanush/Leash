@@ -35,7 +35,8 @@ export function useRun() {
         const snap = await api.poll(runId.current, count.current);
         if (snap.id === runId.current) absorb(snap, false);
       } catch (e) {
-        setError(e.message);
+        setError(e.message === "run not found" ? "The server restarted and this run was lost. Start a new run." : e.message);
+        if (e.message === "run not found") setRun((r) => ({ ...r, status: "failed" }));
       }
     }, 700);
     return () => clearInterval(t);
@@ -50,9 +51,9 @@ export function useRun() {
     }
   };
 
-  const decide = async (approved) => {
+  const decide = async (approved, digest) => {
     try {
-      await api.decide(runId.current, approved);
+      await api.decide(runId.current, approved, digest);
       setRun((r) => ({ ...r, pending: null, status: "running" }));
     } catch (e) {
       setError(e.message);

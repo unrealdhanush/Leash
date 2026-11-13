@@ -20,3 +20,6 @@ wheels/
 # Editor and tooling files
 .github/
 .vscode/
+
+# Web UI
+node_modules/

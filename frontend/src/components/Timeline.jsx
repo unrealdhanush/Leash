@@ -5,7 +5,8 @@ import EventView from "./EventView.jsx";
 export default function Timeline({ events, run }) {
   const end = useRef(null);
   useEffect(() => {
-    end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 400;
+    if (nearBottom) end.current?.scrollIntoView({ block: "end" });
   }, [events.length]);
 
   if (!events.length) {

@@ -107,7 +107,7 @@ body::before {
 .decision { padding: 14px 16px; border: 1px solid #c8f16944; background: linear-gradient(0deg, #c8f16908, #c8f16908), var(--surface); border-radius: 4px; }
 .decision-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
 .decision-head b { margin-left: 8px; font-family: var(--serif); text-transform: none; letter-spacing: 0; font-size: 20px; color: var(--accent); font-weight: 500; }
-.decision p { margin: 10px 0 0; line-height: 1.65; }
+.decision p { margin: 10px 0 0; line-height: 1.65; white-space: pre-line; }
 .who { font-family: var(--mono); font-size: 11px; color: #0b0d10; background: var(--dim); padding: 1px 6px; border-radius: 3px; margin-right: 8px; }
 
 .approval-log { padding: 10px 14px; border: 1px dashed var(--line-2); border-radius: 4px; font-size: 13px; }
@@ -118,6 +118,7 @@ body::before {
 .row { display: grid; grid-template-columns: minmax(180px, 1.3fr) 130px auto 1fr auto; align-items: center; gap: 14px; padding: 9px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; font-size: 13px; transition: background-color 0.15s; }
 .row:hover { background: var(--surface-2); }
 .row.flag { border-color: var(--warn); }
+.row.checkout { grid-template-columns: minmax(180px, 1.3fr) 130px 1fr auto; }
 .row .amt { text-align: right; }
 .outcome { font-family: var(--mono); font-size: 12px; }
 .outcome.ok { color: var(--ok); } .outcome.bad { color: var(--bad); }
@@ -155,7 +156,7 @@ body::before {
 .vcard.frozen { background: linear-gradient(135deg, #1d1f38, #12161c 60%); border-color: #8e9bff55; }
 .vcard-top { display: flex; justify-content: space-between; align-items: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
 .vcard-id { margin: 16px 0; font-size: 12px; word-break: break-all; color: var(--text); }
-.vcard-grid { display: grid; grid-template-columns: 90px 1fr; gap: 6px 10px; font-size: 12px; }
+.vcard-grid { display: grid; grid-template-columns: max-content 1fr; gap: 6px 10px; font-size: 12px; }
 .vcard-grid span { color: var(--dim); }
 .vcard-grid b { font-weight: 500; }
 

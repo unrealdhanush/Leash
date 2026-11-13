@@ -30,8 +30,8 @@ function ApprovalPanel({ req, decide }) {
         <dt>Binds to</dt><dd className="mono dim">{req.digest.slice(0, 12)}</dd>
       </dl>
       <div className="actions">
-        <button className="btn approve" onClick={() => decide(true)} data-testid="approval-approve-btn">Approve</button>
-        <button className="btn decline" onClick={() => decide(false)} data-testid="approval-decline-btn">Decline</button>
+        <button className="btn approve" onClick={() => decide(true, req.digest)} data-testid="approval-approve-btn">Approve</button>
+        <button className="btn decline" onClick={() => decide(false, req.digest)} data-testid="approval-decline-btn">Decline</button>
       </div>
     </div>
   );

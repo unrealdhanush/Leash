@@ -26,6 +26,11 @@ from leash.demo import Config, Demo  # noqa: E402
 from main import AUTO_ANSWERS  # noqa: E402
 
 
+def _env(name: str) -> str:
+    # Values pasted with surrounding quotes, as in the README's .env example, are unquoted.
+    return os.environ.get(name, "").strip().strip('"').strip("'")
+
+
 class Run:
     def __init__(self, auto: bool):
         self.id = uuid.uuid4().hex[:12]
@@ -62,8 +67,8 @@ class Run:
 
     def execute(self) -> None:
         try:
-            email = os.environ.get("LEASH_CARDHOLDER_EMAIL")
-            created_by = os.environ.get("LEASH_CREATED_BY")
+            email = _env("LEASH_CARDHOLDER_EMAIL")
+            created_by = _env("LEASH_CREATED_BY")
             if not email or not created_by:
                 raise SystemExit("Set LEASH_CARDHOLDER_EMAIL and LEASH_CREATED_BY")
             config = Config(cardholder_email=email, created_by=created_by, approver=created_by)
@@ -96,6 +101,7 @@ class StartRun(BaseModel):
 
 class Decision(BaseModel):
     approved: bool
+    digest: str
 
 
 def _get(run_id: str) -> Run:
@@ -142,6 +148,8 @@ def decide(run_id: str, body: Decision):
     run = _get(run_id)
     if run.pending is None:
         raise HTTPException(409, "no approval is pending")
+    if body.digest != run.pending["digest"]:
+        raise HTTPException(409, "this approval is no longer the pending one")
     run.answer(body.approved)
     return {"ok": True}
 

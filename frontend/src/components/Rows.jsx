@@ -25,7 +25,7 @@ export function CheckoutRow({ e }) {
   else if (e.accepted) [outcome, tone] = ["verified · card charged", "ok"];
   else [outcome, tone] = [`verified · card declined ${e.failure_reason}`, "bad"];
   return (
-    <div className={`row ${e.as_expected ? "" : "flag"}`} data-testid={id}>
+    <div className={`row checkout ${e.as_expected ? "" : "flag"}`} data-testid={id}>
       <span className="label">{e.label}</span>
       <span className="mono amt">{money(e.amount)} {e.currency}</span>
       <span className={`outcome ${tone}`}>{outcome}</span>

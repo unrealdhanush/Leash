@@ -1,0 +1,41 @@
+{
+  "summary": "Leash web console tested end to end with 2 real runs (1 manual, 1 auto) on the sandbox, plus a pytest API suite. At first the frontend did not load at all: a blank page with 502s, because recharts@3 needs the peer dependency react-is, which was missing, so Vite's dep optimizer kept crashing. The tester ran `yarn add react-is@18`, after which the app loads. Manual run: approval 1 was Northwind Analytics, 9,840.00 USD x1 (annual), declined. Approval 2 was 1,150.00 USD x12 (monthly), approved. Status showed Finished, 10/10 expected and 0 unexpected. Scene 1 quotes table had monthly 1,000.00 x12 and annual 9,840.00 x1, the decision was monthly, and the explanation was multi-sentence and real. The card panel showed ACTIVE, then a 1,150.00 limit, then FROZEN in scene 7, then ACTIVE again at the end. Auto run: no approval panel appeared, the auto answers were declined and approved, and the result was 10/10 with 0 unexpected. Raw JSON tab: 43 lines, and switching back to Timeline works. 409 is returned when starting a run while one is in progress. All 6 API tests pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "runs store (server.py)", "issue": "Runs are kept only in memory, in the `runs` dict. Any backend hot reload, including one caused by creating or editing any file under /app/backend, wipes all runs and kills a run in progress without any notice to the UI. This was seen when creating tests/test_leash_api.py. Acceptable for a demo, but the UI keeps polling a 404 run and shows the error 'run not found'."},
+      {"endpoint": "env LEASH_CREATED_BY", "issue": "The container env var holds literal quotes (LEASH_CREATED_BY=\"Dhanush Balakrishna\"), so the approver shows as '\"Dhanush Balakrishna\"' in the UI and raw stream, and the quoted value is sent to Airwallex as created_by. Fix the env value, or strip quotes in server.py where the value is read (not in leash/)."},
+      {"endpoint": "POST /api/runs/{id}/approval", "issue": "There is a small race. `answer()` does not check that the pending request is the one the user saw, for example by digest. A fast double-click or a stale request could answer the next approval. Consider sending the digest and comparing it."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "package.json deps", "issue": "react-is is missing (a recharts@3 peer dependency). The Vite dev server crashed in a loop and the preview root returned 502 / a blank page. FIXED by the tester with `yarn add react-is@18`; keep it in package.json.", "selector": "[data-testid=leash-console]", "priority": "CRITICAL (fixed)"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Timeline checkout rows (scene 6)", "issues": ["CheckoutRow renders 4 children, but .row uses a 5-column grid (minmax(180px,1.3fr) 130px auto 1fr auto). The 'as expected' badge lands in the 1fr column and stretches across the row as a long pill. Charge rows look fine. Give checkout rows their own grid template, or add an empty spacer span."]},
+      {"screen": "Card panel", "issues": ["The .vcard-grid label column is 90px, so 'PER_TRANSACTION' overflows into its value ('PER_TRANSACTIO1,150.00 left'). Widen the column (e.g. auto/max-content) or prettify the interval label."]},
+      {"screen": "Timeline auto-scroll", "issues": ["Timeline.jsx calls scrollIntoView(smooth) on every new event, which pulls the user to the bottom while they read Scene 1 or the decision explanation during a run. Only auto-scroll when the user is already near the bottom. Mid-run screenshots also caught the sticky header shifted about 70px down while the smooth scroll was animating."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_leash_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Keep react-is in frontend package.json (added by the tester; without it the app does not load)",
+    "Fix the CheckoutRow grid so the 'as expected' badge doesn't stretch",
+    "Widen the card panel limits label column (PER_TRANSACTION overlaps its value)",
+    "Strip the literal quotes from LEASH_CREATED_BY (env or server.py)",
+    "Optional: only auto-scroll when the user is near the bottom; send the digest with approval decisions; handle a lost run (404) in useRun by stopping polling"
+  ],
+  "critical_code_review_comments": [
+    "useRun: if a run disappears (backend reload), polling keeps firing every 700ms with 404 errors; stop polling and reset when this happens",
+    "server.py: status and pending are set without the lock in ask(); not harmful under the GIL, but setting pending before status could briefly show status=running with pending set",
+    "EventView decision: the 'Agent' badge span is inline before the text (innerText reads 'AgentWe went...'); fine visually"
+  ],
+  "updated_files": ["/app/frontend/package.json", "/app/frontend/yarn.lock", "/app/backend/tests/test_leash_api.py"],
+  "success_rate": {"backend": "100% (6/6 API tests + 409 on concurrent start verified live)", "frontend": "100% functional after the react-is fix; 3 design issues"},
+  "seed_data_creation": "None. 2 real sandbox runs were executed (manual run id was lost; auto run id 794ecdb3b527), as allowed by the request.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Creating or editing files under /app/backend triggers uvicorn reload and wipes in-memory runs. Run pytest with PYTHONDONTWRITEBYTECODE=1 -p no:cacheprovider. Each run is about 60-90s; the browser tool's per-call time is enough if the run is split into steps (start -> approval1 -> approval2 -> finish), because the UI restores state from /api/runs/latest on reload."
+}

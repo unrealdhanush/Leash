@@ -15,5 +15,5 @@ export const api = {
   latest: () => call("/runs/latest"),
   start: (auto) => call("/runs", { method: "POST", body: JSON.stringify({ auto }) }),
   poll: (id, after) => call(`/runs/${id}?after=${after}`),
-  decide: (id, approved) => call(`/runs/${id}/approval`, { method: "POST", body: JSON.stringify({ approved }) }),
+  decide: (id, approved, digest) => call(`/runs/${id}/approval`, { method: "POST", body: JSON.stringify({ approved, digest }) }),
 };

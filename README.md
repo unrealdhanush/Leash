@@ -49,6 +49,12 @@ Who is this agent: Visa. What is it allowed to spend: Airwallex.
 
 Each run issues a new card and moves sandbox money: the setup step converts USD to or from EUR so every run starts at 80,000 USD.
 
+## Web console
+
+`backend/server.py` (FastAPI) runs `Demo` in a thread, buffers its events and relays approvals; `frontend/` (Vite + React) shows the scenes, the card, the cash forecast and the raw JSON stream. With **Auto answers** off, the run pauses at each approval until you click Approve or Decline; with it on, it uses the same answers as `--auto`.
+
+LLM access: if `ANTHROPIC_API_KEY` is set, the agent calls Anthropic directly with `claude-opus-5-5` (live). Without it, and with `EMERGENT_LLM_KEY`, `EMERGENT_LLM_BASE_URL` and `EMERGENT_LLM_MODEL` set, it goes through the Emergent proxy (preview and testing). Only client creation in `leash/agent.py` differs.
+
 ## Code
 
 | File | Role |
