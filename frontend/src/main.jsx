@@ -5,6 +5,7 @@ import Landing from "./pages/Landing.jsx";
 import Purchases from "./pages/Purchases.jsx";
 import Purchase from "./pages/Purchase.jsx";
 import Compare from "./pages/Compare.jsx";
+import Shared from "./pages/Shared.jsx";
 import "./index.css";
 
 createRoot(document.getElementById("root")).render(
@@ -14,6 +15,7 @@ createRoot(document.getElementById("root")).render(
       <Route path="/app" element={<Purchases />} />
       <Route path="/app/purchases/:id" element={<Purchase />} />
       <Route path="/app/compare" element={<Compare />} />
+      <Route path="/share/:token" element={<Shared />} />
     </Routes>
   </BrowserRouter>
 );

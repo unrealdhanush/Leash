@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { cardState, money } from "../format.js";
 import Forecast from "./Forecast.jsx";
 
@@ -8,7 +8,7 @@ export default function SidePanel({ run, events, decide }) {
   const chosen = last?.items.find((a) => a.allowed) || last?.items[0];
   return (
     <aside className="side">
-      {run?.pending && <ApprovalPanel req={run.pending} decide={decide} />}
+      {run?.pending && decide && <ApprovalPanel key={run.pending.digest} req={run.pending} decide={decide} />}
       <CardPanel card={card} />
       <div className="panel" data-testid="forecast-panel">
         <h3>Cash forecast <small>{chosen ? `${chosen.quote.name} · 12 weeks` : ""}</small></h3>
@@ -20,6 +20,7 @@ export default function SidePanel({ run, events, decide }) {
 
 function ApprovalPanel({ req, decide }) {
   const q = req.quote;
+  const [note, setNote] = useState("");
   return (
     <div className="panel approval" data-testid="approval-panel">
       <h3>Approval needed</h3>
@@ -29,9 +30,18 @@ function ApprovalPanel({ req, decide }) {
         <dt>Why</dt><dd><ul>{req.reasons.map((r) => <li key={r}>{r}</li>)}</ul></dd>
         <dt>Binds to</dt><dd className="mono dim">{req.digest.slice(0, 12)}</dd>
       </dl>
+      <textarea
+        className="note-input"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        maxLength={280}
+        rows={2}
+        placeholder="Add a note for the record (optional)"
+        data-testid="approval-note-input"
+      />
       <div className="actions">
-        <button className="btn approve" onClick={() => decide(true, req.digest)} data-testid="approval-approve-btn">Approve</button>
-        <button className="btn decline" onClick={() => decide(false, req.digest)} data-testid="approval-decline-btn">Decline</button>
+        <button className="btn approve" onClick={() => decide(true, req.digest, note)} data-testid="approval-approve-btn">Approve</button>
+        <button className="btn decline" onClick={() => decide(false, req.digest, note)} data-testid="approval-decline-btn">Decline</button>
       </div>
     </div>
   );

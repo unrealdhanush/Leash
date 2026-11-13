@@ -24,7 +24,7 @@ function buildRows(a, b) {
   for (let i = 0; i < asked; i++) {
     const text = (r) => {
       const ap = r.summary.approvals[i];
-      return ap ? `${ap.quote.name} ${money(ap.quote.charge)} ${ap.quote.currency} ×${ap.quote.charges_per_year}: ${answer(ap)}` : "not asked";
+      return ap ? `${ap.quote.name} ${money(ap.quote.charge)} ${ap.quote.currency} ×${ap.quote.charges_per_year}: ${answer(ap)}${ap.note ? ` · “${ap.note}”` : ""}` : "not asked";
     };
     rows.push(["Approvals", `Approval ${i + 1}`, ...pair(text), true]);
   }

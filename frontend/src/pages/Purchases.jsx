@@ -24,10 +24,10 @@ export default function Purchases() {
     return () => clearInterval(t);
   }, [live?.id, load]);
 
-  const start = async (auto) => {
+  const start = async (body) => {
     setError(null);
     try {
-      const snap = await api.start(auto);
+      const snap = await api.start(body);
       navigate(`/app/purchases/${snap.id}`);
     } catch (e) {
       setError(e.message);
@@ -92,7 +92,7 @@ function PurchaseRow({ run, picked, onPick }) {
           ))}
         </span>
         <span className={`mono ${s.unexpected ? "warn" : ""}`} data-testid={`purchase-checks-${run.id}`}>{s.rows - s.unexpected}/{s.rows}</span>
-        <span className="dim small">{run.auto ? "auto" : "manual"} · {when(run.started_at)}</span>
+        <span className="dim small">{run.quote_source === "own" ? "own quote · " : ""}{run.auto ? "auto" : "manual"} · {when(run.started_at)}</span>
       </Link>
     </div>
   );

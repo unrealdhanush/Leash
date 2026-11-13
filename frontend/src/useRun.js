@@ -56,9 +56,9 @@ export function useRun(id) {
     };
   }, [id]);
 
-  const decide = async (approved, digest) => {
+  const decide = async (approved, digest, note) => {
     try {
-      await api.decide(id, approved, digest);
+      await api.decide(id, approved, digest, note);
       setRun((r) => ({ ...r, pending: null }));
     } catch (e) {
       setError(e.message);

@@ -3,7 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import { api } from "../api.js";
 import { STATUS } from "../format.js";
 
-export default function AppShell({ children }) {
+export default function AppShell({ children, shared }) {
   const [health, setHealth] = useState(null);
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
@@ -16,9 +16,10 @@ export default function AppShell({ children }) {
           <span className="brand-name">Leash</span>
         </Link>
         <nav className="nav-links">
-          <NavLink to="/app" data-testid="nav-purchases">Purchases</NavLink>
+          {!shared && <NavLink to="/app" data-testid="nav-purchases">Purchases</NavLink>}
         </nav>
         <div className="nav-right">
+          {shared && <span className="badge expected" data-testid="read-only-badge">read-only</span>}
           <span className="badge muted" data-testid="env-badge">Airwallex sandbox</span>
           {health && <span className="mono dim small" data-testid="llm-model">{health.model}</span>}
         </div>

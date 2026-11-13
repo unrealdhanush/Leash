@@ -331,3 +331,26 @@ a.btn:hover { text-decoration: none; transform: translateY(-1px); }
   .flow { grid-template-columns: 1fr; }
   .nav-links { display: none; } .nav { justify-content: space-between; }
 }
+
+.bad-text { color: var(--bad); }
+.small-btn { padding: 7px 12px; font-size: 12px; font-weight: 500; }
+.btn.lit { border-color: var(--accent); color: var(--accent); }
+.linkish { background: none; border: none; padding: 0; color: var(--accent); font-family: var(--sans); font-size: 12px; cursor: pointer; text-align: left; }
+.linkish:hover { text-decoration: underline; }
+textarea { width: 100%; resize: vertical; background: var(--bg); color: var(--text); border: 1px solid var(--line-2); border-radius: 4px; padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.55; transition: border-color 0.15s; }
+textarea:focus { outline: none; border-color: var(--accent); }
+textarea::placeholder { color: #5d6570; }
+.seg.slim { margin-bottom: 10px; }
+.seg.slim button { padding: 8px 12px; }
+.own { display: flex; flex-direction: column; gap: 8px; }
+.own p { margin: 0; }
+.own-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.own-hint { line-height: 1.5; }
+.note-input { margin-bottom: 12px; font-family: var(--sans); font-size: 13px; }
+.note { display: block; margin-top: 4px; font-family: var(--sans); font-size: 13px; color: #c9d1d9; }
+.phead-main { position: relative; }
+.phead-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; position: relative; }
+.share-pop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 15; width: min(520px, 90vw); padding: 14px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 6px; animation: rise 0.2s ease-out both; }
+.share-pop p { margin: 10px 0; line-height: 1.5; }
+.share-url { display: flex; gap: 8px; }
+.share-url input { flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--line-2); border-radius: 4px; padding: 7px 10px; font-family: var(--mono); font-size: 12px; }

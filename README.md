@@ -49,11 +49,26 @@ Who is this agent: Visa. What is it allowed to spend: Airwallex.
 
 Each run issues a new card and moves sandbox money: the setup step converts USD to or from EUR so every run starts at 80,000 USD.
 
-## Web console
+## Web app
 
-`backend/server.py` (FastAPI) runs `Demo` in a thread, buffers its events and relays approvals; `frontend/` (Vite + React) shows the scenes, the card, the cash forecast and the raw JSON stream. With **Auto answers** off, the run pauses at each approval until you click Approve or Decline; with it on, it uses the same answers as `--auto`.
+`backend/server.py` (FastAPI + MongoDB) runs `Demo` in a thread, streams its events over server-sent events, relays approvals and keeps every run. `frontend/` (Vite + React) is the product around it:
 
-LLM access: if `ANTHROPIC_API_KEY` is set, the agent calls Anthropic directly with `claude-opus-5-5` (live). Without it, and with `EMERGENT_LLM_KEY`, `EMERGENT_LLM_BASE_URL` and `EMERGENT_LLM_MODEL` set, it goes through the Emergent proxy (preview and testing). Only client creation in `leash/agent.py` differs.
+- `/` landing page, `/app` purchases: start a purchase from the example quote or paste/upload your own (text, email or PDF), choose who answers approvals, and see every past purchase.
+- `/app/purchases/:id` the live timeline in chapters (jump with the side list or keys 0-8), the approval panel with an optional note, the card and the cash forecast, the raw JSON stream, a JSON download of the event trail and a read-only share link.
+- `/app/compare` two purchases side by side.
+
+Run it locally:
+
+```
+# backend/.env needs MONGO_URL, DB_NAME and the same Airwallex, LEASH_* and LLM values as above
+cd backend && pip install -r requirements.txt && uvicorn server:app --port 8001
+# frontend/.env needs REACT_APP_BACKEND_URL=http://localhost:8001
+cd frontend && yarn && yarn start
+```
+
+Own quotes go through the same `Demo`: the server points `leash.demo.QUOTES_DIR` at the pasted emails for that run, and leaves the price-rise scene out when no second email is given. Nothing in `leash/` is changed for the web app except client creation in `leash/agent.py`. One purchase runs at a time. There is no login.
+
+LLM access: if `ANTHROPIC_API_KEY` is set, the agent calls Anthropic directly with `claude-opus-5-5` (live). Without it, and with `EMERGENT_LLM_KEY`, `EMERGENT_LLM_BASE_URL` and `EMERGENT_LLM_MODEL` set, it goes through the Emergent proxy (preview and testing).
 
 ## Code
 

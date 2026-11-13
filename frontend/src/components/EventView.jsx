@@ -42,6 +42,7 @@ export default function EventView({ e }) {
       return (
         <p className={`verdict ${e.approved ? "ok" : "bad"}`} data-testid={`approval-result-${e._i}`}>
           {e.approver}: {e.approved ? "approved" : "declined"}
+          {e.note && <span className="note" data-testid={`approval-note-${e._i}`}>“{e.note}”</span>}
         </p>
       );
     case "card_issued":
