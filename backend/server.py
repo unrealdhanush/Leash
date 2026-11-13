@@ -363,7 +363,7 @@ def shared_run(token: str):
     doc = db.runs.find_one({"share_token": token}, {"_id": 1})
     if doc is None:
         raise HTTPException(404, "this link is not active")
-    return _snapshot(doc["_id"])
+    return _snapshot(doc["_id"]) | {"share_token": None}
 
 
 app.include_router(api)

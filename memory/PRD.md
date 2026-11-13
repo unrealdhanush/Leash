@@ -25,7 +25,17 @@ User wants the product itself to tell the story (no separate demo mode): a finan
 - 2026-06 v1: console, approvals, auto toggle, CLI --auto verified
 - 2026-06 v2: SSE live streaming, chapter rail, Mongo run history, compare, purchases home, landing page, story chapters
 
+- 2026-06 v3: own quote (paste / upload txt, eml, PDF via POST /api/quotes/extract; optional price-change email, chapter 5 skipped without it; server points leash.demo.QUOTES_DIR at a temp dir for the run and uses a WebDemo subclass, leash/ untouched), share link (POST/DELETE /api/runs/{id}/share, GET /api/shared/{token}, route /share/:token), JSON export (GET /api/runs/{id}/export), approval notes (Decision.note, added to approval_result event), `at` timestamp on every event. Tested: iteration_3.json
+
+## Known issues (inside leash/, not fixed because leash/ is off limits)
+- A plan billed once a year that passes policy (e.g. own quote 400/month or 4,200/year) gets a single-use card; after the checkout charge, unfreezing it in chapter 8 fails with Airwallex 400 "Invalid status update" and the purchase ends "Stopped".
+- Example quote with the annual plan approved in chapter 2: run finishes, but chapter 7 freezes the card with reason "charge exceeds auto-approve limit" and chapter 8 leaves it frozen.
+
+## Hackathon (Airwallex Agentic Banking, HackerEarth, Track 2)
+Required per public summaries: working demo, video under 5 minutes, repo with setup instructions. Open: record video, push repo (Save to GitHub), decide on hosting + access control (no login today), fix or avoid the two known issues.
+
 ## Backlog
-- P1: paste/upload your own vendor quote (needs a change in leash/demo.py, which is currently fixed to quotes/northwind.txt)
-- P2: download a purchase as JSON lines; delete/archive purchases
+- P0: fix single-use card unfreeze path (needs user permission to touch leash/)
+- P1: access control before hosting publicly
+- P2: delete/archive purchases
 - P2: several purchases at once (currently one live run at a time)

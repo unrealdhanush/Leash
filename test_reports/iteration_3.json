@@ -1,0 +1,32 @@
+{
+  "summary": "Tested the iteration-3 feature set end-to-end: Own Quote (manual + price-change email AND auto without it), Upload (.txt / PDF-with-text / binary-PNG rejection / <20 char disable), POST /api/quotes/extract (txt, pdf-text, pdf-blank, binary, 413 oversize), Share link (create, copy, open in fresh tab, read-only view hides share/export/approval/Purchases-nav, turn off -> 'This link is not active'), Export (JSON with Content-Disposition leash-purchase-{seq}.json, no share_token, no _id, every event has 'at', approval_result events include note), Approval Notes (text in timeline + persisted after reload + shown in compare), Compare across the two new own-quote purchases (approval rows class=diff and the note is rendered), and that a pre-iteration run (#6, no notes, no 'at') still opens and compares without errors. Two live sandbox runs were used: manual own-quote (id=a3f0e669cbd0, seq #7, 10/10, declined annual with note then approved monthly 950 with note, card limit 950.00 USD) and auto own-quote without increase (id=733288ca755a, seq #8, 9/9, chapter-5 absent, jump-5 data-state=skipped disabled 'not needed'). All 13 pytest tests pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Purchase detail at narrow widths (~<=1100px)", "issues": ["Carry-over from iteration 2: horizontal chapter rail still overflows the viewport."]},
+      {"screen": "Virtual card panel", "issues": ["Carry-over: interval labels still render raw as 'per_transaction' etc."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_leash_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.Run._run_own_quote mutates the module-global demo_module.QUOTES_DIR for the duration of a run. Because only one run is allowed at a time this is safe today, but it is a module-level side effect; if the single-run guard is ever relaxed this will leak. Consider passing QUOTES_DIR through Config instead.",
+    "server.extract_quote does not validate file size via Content-Length before reading; it reads MAX_QUOTE_BYTES+1 bytes which is fine but will still buffer up to 2MB+1 in memory per upload request. Acceptable at this scale.",
+    "share_token on finished runs is kept on the run document and returned by /api/runs/{id} so the frontend can show the lit state after reload. Confirmed it is correctly stripped from /api/runs/{id}/export (filtered in export_run) and from /api/shared/{token} response goes through _snapshot -> _public, which DOES include share_token; this means a shared-view consumer with the token can read the token back. Low risk because they already have it, but worth noting.",
+    "Purchase.jsx Actions: when 'share' is clicked while already open with a token, setOpen toggles correctly, but the token is never refetched; good since POST is idempotent while on. OK.",
+    "SidePanel.ApprovalPanel uses key={req.digest} so the textarea remounts and resets between first and second approval. Verified the reset in the manual run."
+  ],
+  "updated_files": ["/app/backend/tests/test_leash_api.py"],
+  "success_rate": {"backend": "100% (13/13 pytest)", "frontend": "100% functional on tested flows"},
+  "test_credentials": "None - no login.",
+  "seed_data_creation": "Two new sandbox runs in Mongo: manual own-quote #7 (a3f0e669cbd0) and auto own-quote #8 (733288ca755a). Their share tokens are turned off at end of test. No manual seed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend has hot-reload via uvicorn; do NOT create/edit files under /app/backend while a run is live. Use PYTHONDONTWRITEBYTECODE=1 -p no:cacheprovider when invoking pytest. Each sandbox run takes 25-40s; only one run live at a time. The hidden file input for own-quote upload is data-testid=own-quote-file; use set_input_files on it directly. A finished own-quote 'Acme Docs' row (seq #5) is pre-existing from before this iteration and shows the earlier known Airwallex 'Invalid status update' stop-at-chapter-8 behaviour referenced in the briefing; left alone.",
+  "rca of the issue": "No issues found in this iteration."
+}
