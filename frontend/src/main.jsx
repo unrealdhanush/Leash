@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { SignIn, SignUp } from "@clerk/react";
 import ClerkAuthProvider from "./components/auth/ClerkAuthProvider.jsx";
 import Protected, { AuthBridge, AuthPage } from "./components/auth/Protected.jsx";
@@ -25,6 +25,7 @@ createRoot(document.getElementById("root")).render(
         <Route path="/app/compare" element={<Protected><Compare /></Protected>} />
         <Route path="/app/team" element={<Protected admin><Team /></Protected>} />
         <Route path="/share/:token" element={<Shared />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ClerkAuthProvider>
   </BrowserRouter>

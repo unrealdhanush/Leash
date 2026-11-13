@@ -31,6 +31,13 @@ User wants the product itself to tell the story (no separate demo mode): a finan
 - A plan billed once a year that passes policy (e.g. own quote 400/month or 4,200/year) gets a single-use card; after the checkout charge, unfreezing it in chapter 8 fails with Airwallex 400 "Invalid status update" and the purchase ends "Stopped".
 - Example quote with the annual plan approved in chapter 2: run finishes, but chapter 7 freezes the card with reason "charge exceeds auto-approve limit" and chapter 8 leaves it frozen.
 
+## v4 (2026-06)
+- Sign-in: Emergent-managed Clerk (Google). backend/clerk_auth.py (given, do not edit), roles admin/member/pending in Mongo `users`, ADMIN_EMAIL in backend/.env, `secure` router protects everything except /api/health, /api/shared/{token}, /api/clerk/config. Frontend: components/auth/*, /sign-in, /sign-up, /app/team (admin). Stream is read with fetch + bearer token (api.stream), export via authenticated blob download.
+- Policy editor: StartRun.auto_approve_max / reserve_floor; server sets leash.demo.POLICY for the run and restores it.
+- Presenter notes: `say` per chapter in chapters.js, toggle in rail or key N, stored in localStorage.
+- leash changes approved by user: policy.card_controls always issues MULTIPLE cards (a SINGLE card closes after its charge and cannot be unfrozen; ALL_TIME limit still holds it to one charge); demo.deposit_lands waits up to 15s for the deposit to reach the balance.
+- Both "known issues" above are fixed by these. Tested: iteration_4.json + manual live run + main.py --auto.
+
 ## Hackathon (Airwallex Agentic Banking, HackerEarth, Track 2)
 Required per public summaries: working demo, video under 5 minutes, repo with setup instructions. Open: record video, push repo (Save to GitHub), decide on hosting + access control (no login today), fix or avoid the two known issues.
 

@@ -1,6 +1,7 @@
 """The Leash demo as a sequence of scenes. It emits events and asks for approvals through callbacks,
 so a terminal, a web UI or a test can drive the same flow."""
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -176,10 +177,16 @@ class Demo:
     def deposit_lands(self) -> None:
         self.emit("scene", title="8. The deposit lands")
         account = treasury.global_account_id(self.client, POLICY.currency)
+        before = treasury.cash_available(self.client, POLICY.currency)
         deposit = treasury.simulate_deposit(self.client, account, INVOICE.amount, "Acme Corp", "INV-2041")
         self.emit("deposit", amount=deposit.get("amount", INVOICE.amount), currency=POLICY.currency, payer="Acme Corp", status=deposit.get("status"))
         plan = [f for f in CASH_PLAN if f is not INVOICE]
         cash = treasury.cash_available(self.client, POLICY.currency)
+        for _ in range(15):  # the sandbox can take a few seconds to show the deposit in the balance
+            if cash > before:
+                break
+            time.sleep(1)
+            cash = treasury.cash_available(self.client, POLICY.currency)
         self.emit("cash", currency=POLICY.currency, available=cash, reserve_floor=POLICY.reserve_floor, plan=[_flow(f) for f in plan])
         check = assess(self.quote, cash, plan, POLICY)
         self.emit("assessments", items=[_assessment(check)])
