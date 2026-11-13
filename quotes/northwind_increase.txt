@@ -1,0 +1,15 @@
+From: Northwind Analytics Billing <billing@northwind-analytics.example>
+Subject: Changes to your Growth plan pricing
+
+Hello,
+
+We're writing to let you know about an update to Growth plan pricing, effective
+from your next billing date.
+
+Monthly billing for the Growth plan will be $1,150 per month, billed on the 1st.
+
+Annual billing remains $9,840 billed once up front for 12 months.
+
+All prices are in USD and exclude applicable sales tax. Thanks for being a customer.
+
+The Northwind Analytics team

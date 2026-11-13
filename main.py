@@ -1,99 +1,92 @@
-"""Leash purchase agent: compare quotes, issue a card that matches the decision, prove it holds."""
+"""Leash purchase agent demo. Run: uv run --env-file .env main.py [--auto] [--json]"""
 
+import argparse
+import json
 import os
 
-from leash.client import AirwallexClient, new_request_id
-from leash.policy import Policy, Quote, card_controls, decide
-from leash.sandbox import CardSimulator
+from leash.agent import Agent
+from leash.client import AirwallexClient
+from leash.demo import Config, Demo
 
-SAAS_MCC = "5734"  # Computer Software Stores
-QUOTES = [
-    Quote(name="monthly", charge=1000.00, charges_per_year=12, currency="USD", merchant_category=SAAS_MCC),
-    Quote(name="annual", charge=9840.00, charges_per_year=1, currency="USD", merchant_category=SAAS_MCC),  # 18% off 12 x 1000
-]
-POLICY = Policy(auto_approve_max=5000.00, reserve_floor=50000.00)
+AUTO_ANSWERS = [False, True]  # decline the cheaper out-of-policy plan, approve the price change
+
+BOLD, DIM, RED, GREEN, YELLOW, RESET = "\033[1m", "\033[2m", "\033[31m", "\033[32m", "\033[33m", "\033[0m"
 
 
-def cash_available(client: AirwallexClient, currency: str) -> float:
-    for balance in client.get("/api/v1/balances/current"):
-        if balance["currency"] == currency:
-            return balance["available_amount"]
-    return 0.0
-
-
-def get_or_create_cardholder(client: AirwallexClient, email: str) -> str:
-    existing = client.get("/api/v1/issuing/cardholders", params={"email": email})["items"]
-    if existing:
-        return existing[0]["cardholder_id"]
-    # REST calls this field `type`; the MCP tool calls it `cardholder_type`.
-    created = client.post(
-        "/api/v1/issuing/cardholders/create",
-        {"type": "DELEGATE", "email": email},
-        request_id=new_request_id(),
-    )
-    return created["cardholder_id"]
-
-
-def issue_card(client: AirwallexClient, cardholder_id: str, quote: Quote, created_by: str) -> str:
-    card = client.post(
-        "/api/v1/issuing/cards/create",
-        {
-            "cardholder_id": cardholder_id,
-            "created_by": created_by,
-            "form_factor": "VIRTUAL",
-            "is_personalized": False,
-            "program": {"purpose": "COMMERCIAL"},
-            "purpose": "SUBSCRIPTIONS",
-            "nick_name": f"Leash SaaS {quote.name}",
-            "authorization_controls": card_controls(quote),
-            "metadata": {"decision": quote.name, "charge": f"{quote.charge} {quote.currency}"},
-        },
-        request_id=new_request_id(),
-    )
-    return card["card_id"]
+def render(kind: str, **e) -> None:
+    if kind == "scene":
+        print(f"\n{BOLD}━━ {e['title']}{RESET}")
+    elif kind == "info":
+        print(f"  {e['text']}")
+    elif kind == "quote_text":
+        print(f"{DIM}" + "\n".join(f"  │ {line}" for line in e["text"].strip().splitlines()) + RESET)
+    elif kind == "quotes_read":
+        print(f"  Agent read {len(e['quotes'])} options from {e['vendor']}:")
+        for q in e["quotes"]:
+            print(f"    {q['name']:8} {q['charge']:>10,.2f} {q['currency']} x{q['charges_per_year']:<2} = {q['annual_cost']:,.2f}/yr")
+    elif kind == "cash":
+        print(f"  Live {e['currency']} cash: {e['available']:,.2f}   reserve floor: {e['reserve_floor']:,.2f}")
+    elif kind == "assessments":
+        for a in e["items"]:
+            q = a["quote"]
+            verdict = f"{GREEN}within policy{RESET}" if a["allowed"] else f"{RED}{'; '.join(a['reasons'])}{RESET}"
+            print(f"    {q['name']:8} {q['charge']:>10,.2f}  low point {a['low_point']:>10,.2f}  {verdict}")
+    elif kind == "decision":
+        print(f"  {BOLD}Decision: {e['chosen']}{RESET}")
+        print(f"  {DIM}Agent:{RESET} {e['explanation']}")
+    elif kind == "approval_request":
+        q = e["quote"]
+        print(f"  {YELLOW}┌ APPROVAL NEEDED{RESET}")
+        print(f"  {YELLOW}│{RESET} vendor    {e['vendor']}")
+        print(f"  {YELLOW}│{RESET} terms     {q['charge']:,.2f} {q['currency']} x{q['charges_per_year']} per year ({q['name']})")
+        for reason in e["reasons"]:
+            print(f"  {YELLOW}│{RESET} why       {reason}")
+        print(f"  {YELLOW}│{RESET} binds to  {e['digest'][:12]}")
+    elif kind == "approval_result":
+        print(f"  {YELLOW}└{RESET} {e['approver']}: {'approved' if e['approved'] else 'declined'}")
+    elif kind == "card_issued":
+        q = e["quote"]
+        print(f"  Virtual card {e['card_id']}")
+        print(f"    limit {q['charge']:,.2f} per charge and per period · {q['currency']} only · MCC {q['merchant_category']} only")
+    elif kind == "card_updated":
+        print(f"  Card limit raised to {e['quote']['charge']:,.2f} under approval {e['approval']}")
+    elif kind == "card_status":
+        color = RED if e["status"] == "INACTIVE" else GREEN
+        print(f"  Card {color}{e['status']}{RESET}: {e['reason']}")
+    elif kind == "charge":
+        outcome = f"{GREEN}cleared{RESET}" if e["accepted"] else f"{RED}declined {e['failure_reason']}{RESET}"
+        check = "" if e["as_expected"] else f"  {RED}UNEXPECTED{RESET}"
+        print(f"    {e['label']:32} {e['amount']:>10,.2f} {e['currency']} MCC {e['merchant_category']}  {outcome}{check}")
+    elif kind == "deposit":
+        print(f"  Deposit from {e['payer']}: {e['amount']:,.2f} {e['currency']} ({e['status']})")
+    elif kind == "limits":
+        for limit in e["limits"]:
+            print(f"    {limit['interval']:15} {limit['remaining']:>10,.2f} left of {limit['amount']:,.2f} {e['currency']}")
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--auto", action="store_true", help="answer approvals automatically: decline the cheaper plan, approve the price change")
+    parser.add_argument("--json", action="store_true", help="print events as JSON lines (implies --auto)")
+    args = parser.parse_args()
+
     email = os.environ.get("LEASH_CARDHOLDER_EMAIL")
     created_by = os.environ.get("LEASH_CREATED_BY")
     if not email or not created_by:
         raise SystemExit("Set LEASH_CARDHOLDER_EMAIL and LEASH_CREATED_BY in .env")
+    config = Config(cardholder_email=email, created_by=created_by, approver=created_by)
 
-    client = AirwallexClient.from_env()
+    answers = iter(AUTO_ANSWERS)
+    if args.json:
+        emit = lambda kind, **e: print(json.dumps({"event": kind, **e}), flush=True)  # noqa: E731
+    else:
+        emit = render
+    if args.auto or args.json:
+        ask = lambda request: next(answers, False)  # noqa: E731
+    else:
+        ask = lambda request: input(f"  {YELLOW}│{RESET} approve? [y/N] ").strip().lower() == "y"  # noqa: E731
 
-    cash = cash_available(client, POLICY.currency)
-    decision = decide(QUOTES, cash, POLICY)
-    print(f"Cash available: {cash:,.2f} {POLICY.currency}")
-    for a in decision.assessments:
-        verdict = "ok" if a.allowed else "; ".join(a.reasons)
-        print(f"  {a.quote.name:8} {a.quote.charge:>10,.2f} x{a.quote.charges_per_year:<2} -> {verdict}")
-    if decision.chosen is None:
-        raise SystemExit("No quote passes policy; escalate to a human.")
-    quote = decision.chosen
-    print(f"Decision: {quote.name}")
-
-    cardholder_id = get_or_create_cardholder(client, email)
-    card_id = issue_card(client, cardholder_id, quote, created_by)
-    print(f"Card issued: {card_id}")
-
-    # Declines first: the at-limit charge uses up the month's limit.
-    sim = CardSimulator(client)
-    mcc = quote.merchant_category
-    for label, amount, currency, merchant_category, expected_failure in [
-        ("over limit", round(quote.charge + 0.01, 2), quote.currency, mcc, "LIMIT_EXCEEDED"),
-        ("wrong currency", 10.00, "EUR", mcc, "CURRENCY_NOT_ALLOWED"),
-        ("wrong merchant", 10.00, quote.currency, "5812", "MERCHANT_CATEGORY_NOT_ALLOWED"),  # restaurant
-        ("at limit", quote.charge, quote.currency, mcc, None),
-    ]:
-        result = sim.authorize(card_id, amount, currency, merchant_category)
-        outcome = "cleared" if result.accepted else f"declined ({result.failure_reason})"
-        check = "as expected" if result.failure_reason == expected_failure else "UNEXPECTED"
-        print(f"  {label:14} {amount:>10,.2f} {currency} MCC {merchant_category} -> {outcome} [{check}]")
-
-    limits = client.get(f"/api/v1/issuing/cards/{card_id}/limits")
-    print("Remaining limits:")
-    for limit in limits["limits"]:
-        print(f"  {limit['interval']:15} {limit['remaining']:>10,.2f} of {limit['amount']:,.2f} {limits['currency']}")
+    Demo(AirwallexClient.from_env(), Agent(), config, emit, ask).run()
 
 
 if __name__ == "__main__":
