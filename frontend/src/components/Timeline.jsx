@@ -3,7 +3,7 @@ import { chapterFor } from "../chapters.js";
 import { slug } from "../format.js";
 import EventView from "./EventView.jsx";
 
-export default function Timeline({ scenes, run }) {
+export default function Timeline({ scenes, run, notes }) {
   const end = useRef(null);
   const count = scenes.reduce((n, s) => n + s.items.length + 1, 0);
   useEffect(() => {
@@ -29,6 +29,7 @@ export default function Timeline({ scenes, run }) {
               <span className="node mono">{chapter?.n ?? "·"}</span>
               <h2 className="scene-title" data-testid={`chapter-title-${scene.key}`}>{chapter?.title ?? scene.title}</h2>
               {chapter && <p className="scene-why">{chapter.why}</p>}
+              {chapter && notes && <p className="scene-say" data-testid={`presenter-note-${scene.key}`}><span>Say</span>{chapter.say}</p>}
               {chapter && <p className="scene-orig mono" data-testid={`scene-original-${scene.key}`}>{scene.title}</p>}
             </header>
             <div className="scene-body">

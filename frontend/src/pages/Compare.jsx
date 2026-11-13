@@ -13,6 +13,7 @@ function buildRows(a, b) {
   const rows = [
     ["Outcome", "Status", ...pair((r) => STATUS[r.status]), true],
     ["Outcome", "Approvals answered by", ...pair((r) => (r.auto ? "auto answers" : "a person")), true],
+    ["Outcome", "Spending limit · cash reserve", ...pair((r) => (r.policy ? `${money(r.policy.auto_approve_max)} · ${money(r.policy.reserve_floor)}` : "5,000.00 · 25,000.00")), true],
     ["Outcome", "Plan picked by policy", ...pair((r) => r.summary.chosen || "—"), true],
     ["Outcome", "Plan on the card", ...pair((r) => planText(r.summary.plan)), true],
     ["Outcome", "Card at the end", ...pair((r) => (r.summary.card_status === "INACTIVE" ? "FROZEN" : r.summary.card_status || "no card")), true],

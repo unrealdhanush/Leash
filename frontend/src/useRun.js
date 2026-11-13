@@ -9,7 +9,7 @@ export function useRun(id) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    let source;
+    let stop;
     let gone = false;
     setRun(null);
     setEvents([]);
@@ -20,39 +20,26 @@ export function useRun(id) {
         if (gone) return;
         setRun(snap);
         setEvents(snap.events);
-      });
+      }).catch((e) => setError(e.message));
 
     api.run(id).then((snap) => {
       if (gone) return;
       setRun(snap);
       setEvents(snap.events);
       if (!ACTIVE.includes(snap.status)) return;
-
-      let count = snap.events.length;
-      source = new EventSource(api.streamUrl(id, count));
-      source.addEventListener("leash", (m) => {
-        const n = Number(m.lastEventId);
-        if (n !== count + 1) return;
-        count = n;
-        const event = JSON.parse(m.data);
-        setEvents((prev) => [...prev, event]);
+      stop = api.stream(id, snap.events.length, {
+        onEvent: (event) => setEvents((prev) => [...prev, event]),
+        onState: (state) => {
+          setRun((r) => ({ ...r, ...state }));
+          if (!ACTIVE.includes(state.status)) refresh();
+        },
+        onLost: refresh,
       });
-      source.addEventListener("state", (m) => {
-        const state = JSON.parse(m.data);
-        setRun((r) => ({ ...r, ...state }));
-        if (!ACTIVE.includes(state.status)) {
-          source.close();
-          refresh();
-        }
-      });
-      source.onerror = () => {
-        if (source.readyState === EventSource.CLOSED) refresh().catch((e) => setError(e.message));
-      };
     }).catch((e) => setError(e.message === "run not found" ? "This purchase does not exist." : e.message));
 
     return () => {
       gone = true;
-      source?.close();
+      stop?.();
     };
   }, [id]);
 

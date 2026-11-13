@@ -41,7 +41,7 @@ export default function EventView({ e }) {
     case "approval_result":
       return (
         <p className={`verdict ${e.approved ? "ok" : "bad"}`} data-testid={`approval-result-${e._i}`}>
-          {e.approver}: {e.approved ? "approved" : "declined"}
+          {e.approver}: {e.approved ? "approved" : "declined"}{e.decided_by ? ` (signed in as ${e.decided_by})` : ""}
           {e.note && <span className="note" data-testid={`approval-note-${e._i}`}>“{e.note}”</span>}
         </p>
       );

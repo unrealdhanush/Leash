@@ -8,6 +8,8 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@clerk/react": "6.17.0",
+    "@clerk/ui": "1.38.1",
     "lucide-react": "^1.72.0",
     "react": "18",
     "react-dom": "18",

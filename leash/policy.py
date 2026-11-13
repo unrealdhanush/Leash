@@ -101,7 +101,9 @@ def decide(quotes: list[Quote], cash_now: float, plan: list[CashFlow], policy: P
 def card_controls(quote: Quote) -> dict:
     """Card authorization_controls that allow one charge per billing period, at this vendor's MCC and currency only."""
     return {
-        "allowed_transaction_count": "MULTIPLE" if quote.charges_per_year > 1 else "SINGLE",
+        # Airwallex closes a SINGLE card after its one charge, and a closed card can no longer be frozen or unfrozen.
+        # The ALL_TIME limit already holds a pay-once plan to one charge.
+        "allowed_transaction_count": "MULTIPLE",
         "allowed_currencies": [quote.currency],
         "allowed_merchant_categories": [quote.merchant_category],
         "transaction_limits": card_limits(quote),

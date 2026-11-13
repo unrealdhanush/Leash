@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { api } from "../api.js";
+import { Show, UserButton } from "@clerk/react";
 import { STATUS } from "../format.js";
+import { useMe } from "./auth/Protected.jsx";
 
 export default function AppShell({ children, shared }) {
   const [health, setHealth] = useState(null);
+  const me = useMe();
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
   }, []);
@@ -16,12 +19,14 @@ export default function AppShell({ children, shared }) {
           <span className="brand-name">Leash</span>
         </Link>
         <nav className="nav-links">
-          {!shared && <NavLink to="/app" data-testid="nav-purchases">Purchases</NavLink>}
+          {!shared && <NavLink to="/app" end data-testid="nav-purchases">Purchases</NavLink>}
+          {!shared && me?.role === "admin" && <NavLink to="/app/team" data-testid="nav-team">Team</NavLink>}
         </nav>
         <div className="nav-right">
           {shared && <span className="badge expected" data-testid="read-only-badge">read-only</span>}
           <span className="badge muted" data-testid="env-badge">Airwallex sandbox</span>
           {health && <span className="mono dim small" data-testid="llm-model">{health.model}</span>}
+          {!shared && <Show when="signed-in"><span data-testid="user-menu"><UserButton /></span></Show>}
         </div>
       </header>
       {children}

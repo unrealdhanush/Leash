@@ -77,17 +77,26 @@ export default function NewPurchase({ live, onStart }) {
   const [quote, setQuote] = useState("");
   const [increase, setIncrease] = useState("");
   const [starting, setStarting] = useState(false);
+  const [limit, setLimit] = useState("");
+  const [reserve, setReserve] = useState("");
   useEffect(() => {
-    api.context().then(setContext).catch(() => setContext(null));
+    api.context().then((c) => {
+      setContext(c);
+      setLimit(String(c.policy.auto_approve_max));
+      setReserve(String(c.policy.reserve_floor));
+    }).catch(() => setContext(null));
   }, []);
 
   const start = async () => {
     setStarting(true);
-    await onStart(own ? { auto, quote_text: quote.trim(), increase_text: increase.trim() || null } : { auto });
+    const base = { auto, auto_approve_max: Number(limit), reserve_floor: Number(reserve) };
+    await onStart(own ? { ...base, quote_text: quote.trim(), increase_text: increase.trim() || null } : base);
     setStarting(false);
   };
   const policy = context?.policy;
   const tooShort = own && quote.trim().length < 20;
+  const badPolicy = !(Number(limit) > 0 && Number(limit) <= 1000000 && reserve !== "" && Number(reserve) >= 0 && Number(reserve) <= 1000000);
+  const changed = policy && (Number(limit) !== policy.auto_approve_max || Number(reserve) !== policy.reserve_floor);
 
   return (
     <section className="newp" data-testid="new-purchase">
@@ -105,10 +114,12 @@ export default function NewPurchase({ live, onStart }) {
 
       {policy && (
         <>
-          <h3>Spending policy</h3>
+          <h3>Spending policy {changed && <button className="linkish" style={{ marginLeft: "auto", textTransform: "none", letterSpacing: 0 }} onClick={() => { setLimit(String(policy.auto_approve_max)); setReserve(String(policy.reserve_floor)); }} data-testid="policy-reset-btn">Reset</button>}</h3>
           <dl className="rules" data-testid="new-purchase-policy">
-            <dt>The agent may spend alone up to</dt><dd className="mono">{money(policy.auto_approve_max)} {policy.currency} per charge</dd>
-            <dt>Cash must stay above</dt><dd className="mono">{money(policy.reserve_floor)} {policy.currency}</dd>
+            <dt><label htmlFor="policy-limit">The agent may spend alone up to</label></dt>
+            <dd className="mono"><input id="policy-limit" className="num" type="number" min="1" step="100" value={limit} onChange={(e) => setLimit(e.target.value)} data-testid="policy-limit-input" /> {policy.currency} per charge</dd>
+            <dt><label htmlFor="policy-reserve">Cash must stay above</label></dt>
+            <dd className="mono"><input id="policy-reserve" className="num" type="number" min="0" step="1000" value={reserve} onChange={(e) => setReserve(e.target.value)} data-testid="policy-reserve-input" /> {policy.currency}</dd>
             <dt>It looks ahead</dt><dd className="mono">{policy.horizon_weeks} weeks</dd>
           </dl>
           <h3>Cash plan</h3>
@@ -136,10 +147,11 @@ export default function NewPurchase({ live, onStart }) {
         </button>
       </div>
 
-      <button className="btn primary wide" onClick={start} disabled={Boolean(live) || starting || tooShort} data-testid="start-run-btn">
+      <button className="btn primary wide" onClick={start} disabled={Boolean(live) || starting || tooShort || badPolicy} data-testid="start-run-btn">
         {live ? "A purchase is in progress" : starting ? "Handing over…" : <>Hand it to the agent <ArrowRight size={15} /></>}
       </button>
       {tooShort && !live && <p className="small dim">Paste or upload a quote first.</p>}
+      {badPolicy && context && <p className="small bad-text" data-testid="policy-error">The spending limit must be above 0 and the reserve 0 or more (both up to 1,000,000).</p>}
       {live && <p className="small dim">Only one purchase runs at a time. <Link to={`/app/purchases/${live.id}`} data-testid="open-live-purchase">Open #{live.seq}</Link></p>}
     </section>
   );

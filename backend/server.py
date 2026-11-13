@@ -9,6 +9,7 @@ import tempfile
 import threading
 import traceback
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,12 +19,15 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(Path(__file__).resolve().parent / ".env")
 sys.path.insert(0, str(ROOT))
 
-from fastapi import APIRouter, FastAPI, File, HTTPException, Request, UploadFile  # noqa: E402
+import requests  # noqa: E402
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, StreamingResponse  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 from pypdf import PdfReader  # noqa: E402
-from pymongo import MongoClient  # noqa: E402
+from pymongo import MongoClient, ReturnDocument  # noqa: E402
+
+from clerk_auth import clerk_router, require_user  # noqa: E402
 
 from leash import agent as agent_module  # noqa: E402
 from leash import demo as demo_module  # noqa: E402
@@ -34,6 +38,7 @@ from main import AUTO_ANSWERS  # noqa: E402
 
 ACTIVE = ("running", "waiting_approval")
 EXAMPLE_QUOTES = demo_module.QUOTES_DIR
+DEFAULT_POLICY = demo_module.POLICY
 MAX_QUOTE_BYTES = 2 * 1024 * 1024
 db = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
 
@@ -75,7 +80,7 @@ def summarize(events: list[dict]) -> dict:
 
 
 def _public(doc: dict) -> dict:
-    return {key: doc.get(key) for key in ("seq", "auto", "started_at", "finished_at", "status", "error", "model", "summary", "quote_source", "share_token")} | {"id": doc["_id"]}
+    return {key: doc.get(key) for key in ("seq", "auto", "started_at", "finished_at", "status", "error", "model", "summary", "quote_source", "share_token", "policy", "started_by")} | {"id": doc["_id"]}
 
 
 class WebDemo(Demo):
@@ -89,12 +94,14 @@ class WebDemo(Demo):
 
 
 class Run:
-    def __init__(self, auto: bool, quote_text: str | None = None, increase_text: str | None = None):
+    def __init__(self, auto: bool, quote_text: str | None, increase_text: str | None, policy, started_by: str | None):
         self.id = uuid.uuid4().hex[:12]
         self.auto = auto
         self.quote_text = quote_text
         self.increase_text = increase_text
+        self.policy = policy
         self._note = ""
+        self._decided_by = None
         self.status = "running"
         self.events: list[dict] = []
         self.pending: dict | None = None
@@ -106,13 +113,17 @@ class Run:
         db.runs.insert_one({
             "_id": self.id, "seq": db.runs.count_documents({}) + 1, "auto": auto, "started_at": _now(), "finished_at": None,
             "status": self.status, "error": None, "model": agent_module.MODEL, "summary": summarize([]), "events": [],
-            "quote_source": "own" if quote_text else "example", "share_token": None,
+            "quote_source": "own" if quote_text else "example", "share_token": None, "started_by": started_by,
+            "policy": {"auto_approve_max": policy.auto_approve_max, "reserve_floor": policy.reserve_floor},
         })
 
     def emit(self, kind: str, **e) -> None:
         event = json.loads(json.dumps({"event": kind, **e}, default=str)) | {"at": _now()}
-        if kind == "approval_result" and self._note:
-            event["note"], self._note = self._note, ""
+        if kind == "approval_result":
+            if self._note:
+                event["note"], self._note = self._note, ""
+            if self._decided_by:
+                event["decided_by"], self._decided_by = self._decided_by, None
         with self._cond:
             self.events.append(event)
             self._cond.notify_all()
@@ -136,10 +147,10 @@ class Run:
         self._set("running")
         return bool(self._answer)
 
-    def answer(self, approved: bool, note: str) -> None:
+    def answer(self, approved: bool, note: str, decided_by: str | None) -> None:
         with self._cond:
             self.pending = None
-        self._answer, self._note = approved, note.strip()
+        self._answer, self._note, self._decided_by = approved, note.strip(), decided_by
         self._decided.set()
 
     def execute(self) -> None:
@@ -150,10 +161,7 @@ class Run:
                 raise SystemExit("Set LEASH_CARDHOLDER_EMAIL and LEASH_CREATED_BY")
             config = Config(cardholder_email=email, created_by=created_by, approver=created_by)
             demo = WebDemo(AirwallexClient.from_env(), Agent(), config, self.emit, self.ask)
-            if self.quote_text is None:
-                demo.run()
-            else:
-                self._run_own_quote(demo)
+            self._run_with_overrides(demo)
             self._set("done")
         except BaseException as exc:  # SystemExit is how the demo stops early
             self.error = str(exc) or exc.__class__.__name__
@@ -161,18 +169,20 @@ class Run:
             self.emit("error", text=self.error)
             self._set("failed")
 
-    def _run_own_quote(self, demo: WebDemo) -> None:
-        # leash.demo reads its quotes from QUOTES_DIR; point it at this purchase's emails for the one live run.
-        demo.skip_price_change = not self.increase_text
+    def _run_with_overrides(self, demo: WebDemo) -> None:
+        # leash.demo reads its quotes and policy from module globals; set them for the one live run, then restore.
+        demo.skip_price_change = self.quote_text is not None and not self.increase_text
         with tempfile.TemporaryDirectory() as tmp:
-            (Path(tmp) / "northwind.txt").write_text(self.quote_text)
-            if self.increase_text:
-                (Path(tmp) / "northwind_increase.txt").write_text(self.increase_text)
-            demo_module.QUOTES_DIR = Path(tmp)
+            if self.quote_text is not None:
+                (Path(tmp) / "northwind.txt").write_text(self.quote_text)
+                if self.increase_text:
+                    (Path(tmp) / "northwind_increase.txt").write_text(self.increase_text)
+                demo_module.QUOTES_DIR = Path(tmp)
+            demo_module.POLICY = self.policy
             try:
                 demo.run()
             finally:
-                demo_module.QUOTES_DIR = EXAMPLE_QUOTES
+                demo_module.QUOTES_DIR, demo_module.POLICY = EXAMPLE_QUOTES, DEFAULT_POLICY
 
     def state(self) -> dict:
         return {"status": self.status, "pending": self.pending, "error": self.error}
@@ -184,12 +194,77 @@ db.runs.update_many(
     {"$set": {"status": "interrupted", "error": "The server restarted while this purchase was in progress.", "finished_at": _now()}},
 )
 
+# Access: roles are code, each person's role is data. New sign-ins wait as "pending" until an admin lets them in.
+ROLES = ["admin", "member", "pending"]
+DEFAULT_ROLE = "pending"
+RETIRED_ROLES: dict[str, str] = {}
+RANK = {r: len(ROLES) - i for i, r in enumerate(ROLES)}
+ENV = "live" if os.environ.get("CLERK_PUBLISHABLE_KEY", "").startswith("pk_live_") else "preview"
+IN_ENV = {"env": {"$in": [ENV, None]}}
+
+
+def effective_role(role) -> str:
+    role = RETIRED_ROLES.get(role, role)
+    return role if role in ROLES else DEFAULT_ROLE
+
+
+def _clerk_profile(user_id: str) -> dict:
+    """One Clerk lookup on first sign-in: verified admin email, plus the email and name shown on the Team page."""
+    admins = {e.strip().lower() for e in os.environ.get("ADMIN_EMAIL", "").split(",") if e.strip()}
+    r = requests.get(f"https://api.clerk.com/v1/users/{user_id}", timeout=10,
+                     headers={"Authorization": f"Bearer {os.environ['CLERK_SECRET_KEY']}", "User-Agent": "emergent-app"})
+    r.raise_for_status()
+    data = r.json()
+    emails = data["email_addresses"]
+    primary = next((e for e in emails if e["id"] == data.get("primary_email_address_id")), emails[0] if emails else None)
+    return {
+        "is_admin": any(e["email_address"].lower() in admins and (e.get("verification") or {}).get("status") == "verified" for e in emails),
+        "email": primary["email_address"] if primary else None,
+        "name": " ".join(filter(None, [data.get("first_name"), data.get("last_name")])) or None,
+    }
+
+
+def current_member(user: dict = Depends(require_user)) -> dict:
+    uid = user["user_id"]
+    member = db.users.find_one({"user_id": uid}, {"_id": 0})
+    if member is None or not member.get("role"):  # first sign-in
+        profile = _clerk_profile(uid)
+        role = "admin" if profile["is_admin"] else DEFAULT_ROLE
+        db.users.update_one({"user_id": uid, "role": {"$in": [None, ""]}}, {"$set": {"role": role}})
+        member = db.users.find_one_and_update(
+            {"user_id": uid},
+            {"$setOnInsert": {"user_id": uid, "role": role, "email": profile["email"], "name": profile["name"], "joined_at": _now()}},
+            upsert=True, projection={"_id": 0}, return_document=ReturnDocument.AFTER)
+    if member.get("env") != ENV:
+        db.users.update_one({"user_id": uid}, {"$set": {"env": ENV}})
+    return member | {"env": ENV, "role": effective_role(member["role"])}
+
+
+def require_role(*roles: str):
+    def check(member: dict = Depends(current_member)) -> dict:
+        if member["role"] not in roles:
+            raise HTTPException(status_code=403, detail="Not allowed")
+        return member
+    return check
+
+
+require_access = require_role("admin", "member")
+
 app = FastAPI()
 api = APIRouter(prefix="/api")
+secure = APIRouter(prefix="/api", dependencies=[Depends(require_access)])
+
+
+@app.on_event("startup")
+def move_retired_roles():
+    for old, new in RETIRED_ROLES.items():
+        db.users.update_many({"role": old}, {"$set": {"role": new}})
 
 
 class StartRun(BaseModel):
     auto: bool = False
+    auto_approve_max: float | None = Field(default=None, gt=0, le=1_000_000)
+    reserve_floor: float | None = Field(default=None, ge=0, le=1_000_000)
     quote_text: str | None = Field(default=None, min_length=20, max_length=20000)
     increase_text: str | None = Field(default=None, max_length=20000)
 
@@ -243,10 +318,10 @@ def health():
     }
 
 
-@api.get("/context")
+@secure.get("/context")
 def context():
     """What a purchase starts from: the vendor quote, the spending policy and the cash plan, read from leash/."""
-    policy = demo_module.POLICY
+    policy = DEFAULT_POLICY
     return {
         "quote_text": (EXAMPLE_QUOTES / "northwind.txt").read_text(),
         "merchant_category": demo_module.SAAS_MCC,
@@ -259,33 +334,38 @@ def context():
     }
 
 
-@api.get("/runs")
+@secure.get("/runs")
 def list_runs():
     return [_public(doc) for doc in db.runs.find({}, {"events": 0}).sort("started_at", -1)]
 
 
-@api.post("/runs")
-def start_run(body: StartRun):
+@secure.post("/runs")
+def start_run(body: StartRun, member: dict = Depends(require_access)):
     if any(run.status in ACTIVE for run in runs.values()):
         raise HTTPException(409, "a run is already in progress")
-    run = Run(body.auto, body.quote_text, (body.increase_text or "").strip() or None)
+    policy = replace(
+        DEFAULT_POLICY,
+        auto_approve_max=DEFAULT_POLICY.auto_approve_max if body.auto_approve_max is None else body.auto_approve_max,
+        reserve_floor=DEFAULT_POLICY.reserve_floor if body.reserve_floor is None else body.reserve_floor,
+    )
+    run = Run(body.auto, body.quote_text, (body.increase_text or "").strip() or None, policy, member.get("email"))
     runs[run.id] = run
     threading.Thread(target=run.execute, daemon=True).start()
     return _snapshot(run.id)
 
 
-@api.get("/runs/latest")
+@secure.get("/runs/latest")
 def latest_run():
     doc = db.runs.find_one({}, {"_id": 1}, sort=[("started_at", -1)])
     return _snapshot(doc["_id"]) if doc else None
 
 
-@api.get("/runs/{run_id}")
+@secure.get("/runs/{run_id}")
 def get_run(run_id: str, after: int = 0):
     return _snapshot(run_id, after)
 
 
-@api.get("/runs/{run_id}/stream")
+@secure.get("/runs/{run_id}/stream")
 def stream_run(run_id: str, request: Request, after: int = 0):
     run = runs.get(run_id)
     if run is None:
@@ -295,8 +375,8 @@ def stream_run(run_id: str, request: Request, after: int = 0):
                              headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
 
 
-@api.post("/runs/{run_id}/approval")
-def decide(run_id: str, body: Decision):
+@secure.post("/runs/{run_id}/approval")
+def decide(run_id: str, body: Decision, member: dict = Depends(require_access)):
     run = runs.get(run_id)
     if run is None:
         if db.runs.count_documents({"_id": run_id}) == 0:
@@ -306,11 +386,11 @@ def decide(run_id: str, body: Decision):
         raise HTTPException(409, "no approval is pending")
     if body.digest != run.pending["digest"]:
         raise HTTPException(409, "this approval is no longer the pending one")
-    run.answer(body.approved, body.note)
+    run.answer(body.approved, body.note, member.get("email"))
     return {"ok": True}
 
 
-@api.post("/quotes/extract")
+@secure.post("/quotes/extract")
 async def extract_quote(file: UploadFile = File(...)):
     """Text of an uploaded quote: PDF text is extracted, anything else must be plain text."""
     data = await file.read(MAX_QUOTE_BYTES + 1)
@@ -331,7 +411,7 @@ async def extract_quote(file: UploadFile = File(...)):
     return {"text": text.strip(), "filename": file.filename}
 
 
-@api.get("/runs/{run_id}/export")
+@secure.get("/runs/{run_id}/export")
 def export_run(run_id: str):
     snap = _snapshot(run_id)
     events = snap.pop("events")
@@ -341,7 +421,7 @@ def export_run(run_id: str):
                         headers={"Content-Disposition": f'attachment; filename="leash-purchase-{snap["seq"]}.json"'})
 
 
-@api.post("/runs/{run_id}/share")
+@secure.post("/runs/{run_id}/share")
 def share_run(run_id: str):
     snap = _snapshot(run_id)
     if snap["status"] in ACTIVE:
@@ -351,7 +431,7 @@ def share_run(run_id: str):
     return {"token": token}
 
 
-@api.delete("/runs/{run_id}/share")
+@secure.delete("/runs/{run_id}/share")
 def unshare_run(run_id: str):
     _snapshot(run_id)
     db.runs.update_one({"_id": run_id}, {"$set": {"share_token": None}})
@@ -366,7 +446,39 @@ def shared_run(token: str):
     return _snapshot(doc["_id"]) | {"share_token": None}
 
 
+class RoleIn(BaseModel):
+    role: str
+
+
+@api.get("/me")
+def me(member: dict = Depends(current_member)):
+    return {key: member.get(key) for key in ("user_id", "email", "name", "role")}
+
+
+@api.get("/users")
+def list_users(admin: dict = Depends(require_role("admin"))):
+    people = list(db.users.find(IN_ENV, {"_id": 0}).sort("joined_at", 1))
+    return {"roles": [r for r in ROLES if RANK[r] <= RANK[admin["role"]]],
+            "users": [p | {"role": effective_role(p.get("role"))} for p in people]}
+
+
+@api.patch("/users/{user_id}/role")
+def set_role(user_id: str, body: RoleIn, admin: dict = Depends(require_role("admin"))):
+    if body.role not in ROLES or RANK[body.role] > RANK[admin["role"]]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    target = db.users.find_one({"user_id": user_id, **IN_ENV}, {"_id": 0})
+    if target is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if (effective_role(target.get("role")) == "admin" and body.role != "admin"
+            and db.users.count_documents({"role": "admin", **IN_ENV}) <= 1):
+        raise HTTPException(status_code=409, detail="Keep at least one admin")
+    db.users.update_one({"user_id": user_id}, {"$set": {"role": body.role}})
+    return {"user_id": user_id, "role": body.role}
+
+
 app.include_router(api)
+app.include_router(secure)
+app.include_router(clerk_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),

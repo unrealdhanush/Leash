@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Check, Copy, Download, Link2 } from "lucide-react";
 import { api } from "../api.js";
@@ -9,6 +9,8 @@ import SceneRail from "../components/SceneRail.jsx";
 import Timeline from "../components/Timeline.jsx";
 import RawStream from "../components/RawStream.jsx";
 import SidePanel from "../components/SidePanel.jsx";
+import { ReserveContext } from "../components/Forecast.jsx";
+import { money } from "../format.js";
 
 export default function Purchase() {
   const { id } = useParams();
@@ -31,25 +33,31 @@ export function PurchaseView({ run, events, error, decide, readOnly }) {
     setView("visual");
     setTimeout(() => document.getElementById(`chapter-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }, []);
+  const [notes, setNotes] = useState(() => !readOnly && localStorage.getItem("leash-presenter-notes") === "on");
+  const toggleNotes = useCallback(() => setNotes((v) => !v), []);
+  useEffect(() => {
+    if (!readOnly) localStorage.setItem("leash-presenter-notes", notes ? "on" : "off");
+  }, [notes, readOnly]);
   const scenes = groupScenes(events);
+  const reserve = run.policy?.reserve_floor ?? events.find((e) => e.event === "cash")?.reserve_floor ?? 25000;
   return (
-    <>
+    <ReserveContext.Provider value={reserve}>
       <PurchaseHeader run={run} events={events} readOnly={readOnly} />
       {error && <div className="banner error" data-testid="app-error">{error}</div>}
       {run.status === "interrupted" && <div className="banner error" data-testid="run-interrupted">{run.error}</div>}
       <main className="detail">
-        <SceneRail scenes={scenes} run={run} onJump={jump} />
+        <SceneRail scenes={scenes} run={run} onJump={jump} notes={notes} onNotes={readOnly ? null : toggleNotes} />
         <section className="stream">
           <div className="tabs" role="tablist">
             <button data-testid="view-visual-tab" className={view === "visual" ? "on" : ""} onClick={() => setView("visual")}>Timeline</button>
             <button data-testid="view-raw-tab" className={view === "raw" ? "on" : ""} onClick={() => setView("raw")}>Raw JSON stream</button>
             <span className="count" data-testid="event-count">{events.length} events</span>
           </div>
-          {view === "visual" ? <Timeline scenes={scenes} run={run} /> : <RawStream events={events} />}
+          {view === "visual" ? <Timeline scenes={scenes} run={run} notes={notes} /> : <RawStream events={events} />}
         </section>
         <SidePanel run={run} events={events} decide={decide} />
       </main>
-    </>
+    </ReserveContext.Provider>
   );
 }
 
@@ -67,6 +75,7 @@ function PurchaseHeader({ run, events, readOnly }) {
         <p className="phead-meta">
           <span data-testid="purchase-plan">{card.quote ? `On the card: ${planText(card.quote)}` : "No card yet"}</span>
           <span data-testid="purchase-quote-source">{run.quote_source === "own" ? "Own quote" : "Example quote"}</span>
+          {run.policy && <span data-testid="purchase-policy">Limit {money(run.policy.auto_approve_max)} · reserve {money(run.policy.reserve_floor)}</span>}
           <span>{run.auto ? "Auto answers" : "A person approves each one"}</span>
           <span>Started {when(run.started_at)}</span>
           {run.finished_at && <span>Took {duration(run.started_at, run.finished_at)}</span>}
@@ -111,7 +120,7 @@ function Actions({ run }) {
 
   return (
     <div className="phead-actions">
-      <a className="btn small-btn" href={api.exportUrl(run.id)} download data-testid="export-btn"><Download size={13} /> Download the event trail</a>
+      <button className="btn small-btn" onClick={() => api.download(run.id).catch((e) => setError(e.message))} data-testid="export-btn"><Download size={13} /> Download the event trail</button>
       <button className={`btn small-btn ${token ? "lit" : ""}`} onClick={share} data-testid="share-btn"><Link2 size={13} /> {token ? "Share link is on" : "Create a share link"}</button>
       {error && <span className="small bad-text" data-testid="share-error">{error}</span>}
       {open && token && (

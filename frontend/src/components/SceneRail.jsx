@@ -12,7 +12,7 @@ const LABEL = {
   unreached: "not reached",
 };
 
-export default function SceneRail({ scenes, run, onJump }) {
+export default function SceneRail({ scenes, run, onJump, notes, onNotes }) {
   const [viewing, setViewing] = useState(null);
   const live = ACTIVE.includes(run.status);
   const last = scenes.length ? CHAPTERS.findIndex((c) => c.key === scenes[scenes.length - 1].key) : -1;
@@ -43,12 +43,13 @@ export default function SceneRail({ scenes, run, onJump }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if (e.key === "n" && onNotes) onNotes();
       const chapter = CHAPTERS.find((c) => c.n === e.key);
       if (chapter && scenes.some((s) => s.key === chapter.key)) onJump(chapter.key);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [scenes.length, onJump]);
+  }, [scenes.length, onJump, onNotes]);
 
   return (
     <nav className="rail" data-testid="scene-rail" aria-label="Chapters">
@@ -78,6 +79,13 @@ export default function SceneRail({ scenes, run, onJump }) {
           );
         })}
       </ol>
+      {onNotes && (
+        <label className="switch rail-notes" data-testid="presenter-notes-toggle">
+          <input type="checkbox" checked={notes} onChange={onNotes} data-testid="presenter-notes-input" />
+          <span className="track"><span className="thumb" /></span>
+          <span className="switch-label">Presenter notes<small>what to say at each chapter · press N</small></span>
+        </label>
+      )}
     </nav>
   );
 }
