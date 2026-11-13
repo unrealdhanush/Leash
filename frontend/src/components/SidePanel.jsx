@@ -53,7 +53,7 @@ function CardPanel({ card }) {
         <span>Merchant</span><b className="mono">{card.quote ? `MCC ${card.quote.merchant_category}` : "—"}</b>
         {card.limits?.limits.map((l) => (
           <React.Fragment key={l.interval}>
-            <span>{l.interval}</span><b className="mono">{money(l.remaining)} left</b>
+            <span>{l.interval.toLowerCase().replace(/_/g, " ")}</span><b className="mono">{money(l.remaining)} left</b>
           </React.Fragment>
         ))}
       </div>

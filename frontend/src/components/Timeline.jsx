@@ -7,7 +7,7 @@ export default function Timeline({ scenes, run }) {
   const end = useRef(null);
   const count = scenes.reduce((n, s) => n + s.items.length + 1, 0);
   useEffect(() => {
-    const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 400;
+    const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
     if (nearBottom && run.status === "running") end.current?.scrollIntoView({ block: "end" });
   }, [count, run.status]);
 

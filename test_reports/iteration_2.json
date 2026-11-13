@@ -1,0 +1,38 @@
+{
+  "summary": "End-to-end test of the Leash web console: Landing / app / manual purchase with live SSE streaming / mid-run reload / jump menu / auto purchase / concurrency / history after a backend restart / compare / responsive 1100px / and a pytest API suite. Three sandbox runs were executed (seq #1 was a pre-existing auto run, #2 was a new manual run id=a1d7412803c4 with Decline/Approve, #3 was a new auto run id=edc046188712). Both new runs finished with 10/10 as expected and 0 unexpected, card ACTIVE with limit 1,150.00. All 9 API tests pass. The whole feature set in the request works: live SSE (no polling loop), sticky chapter rail with keyboard 0-8, chapter-{key} anchors clear the sticky nav, reload during waiting_approval restores events + keeps approval panel, digest-bound approvals (stale digest returns 409 'no approval is pending'), only one run at a time (POST /api/runs returns 409 while live), runs persist through sudo supervisorctl restart backend, compare between manual and auto shows exactly the expected 1 difference 'Approvals answered by'. Three small design / UX issues worth flagging: (a) Timeline auto-scrolls on every new event during a live run (same as iteration 1), (b) at 1100px the horizontal chapter rail is wider than the viewport (rail width 1388px vs viewport 1100px) and causes horizontal overflow of .rail, (c) the virtual card panel still shows raw interval labels PER_TRANSACTION / MONTHLY.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/runs/{id}/stream", "issue": "Verified 404 for a finished (non-live) run and OK while live. Works as specified."},
+      {"endpoint": "POST /api/runs/{id}/approval", "issue": "Digest check is in place: approving with a stale digest after the pending request changed correctly returns 409 'no approval is pending'. One behavioural note: on decline, the pending is cleared immediately but the frontend approval panel can briefly still show the old content until the next state event lands, so a fast double-click submits the old digest and gets 409 (expected server behaviour, just worth knowing)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Purchase detail at 1100px", "issues": ["Chapter rail collapses to a horizontal strip (good) but its width (~1388px) exceeds the 1100px viewport, so the rail overflows horizontally. Consider overflow-x: auto on .rail-list and/or shrinking rail items at this width."]},
+      {"screen": "Virtual card panel", "issues": ["Interval keys still render as raw snake_case ('PER_TRANSACTION', 'MONTHLY'). They no longer overlap their values (the iteration-1 bug is fixed), but prettifying to 'per transaction' / 'per month' would read better."]},
+      {"screen": "Timeline during a live run", "issues": ["Auto-scroll on every new event pulls the viewport to the bottom while the user is reading Scene 1 / the decision explanation. Only auto-scroll when the user is already near the bottom (same note as iteration 1)."]},
+      {"screen": "Decision block", "issues": ["The 'Agent' badge is an inline <span> immediately before the explanation text, so innerText reads 'AgentWe went with...'. Visually fine; a small margin-right or a block-level badge would keep screen-readers / copy-paste cleaner."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_leash_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Cap or scroll the horizontal chapter rail at <=1100px so it stops overflowing the viewport",
+    "Only auto-scroll Timeline when the user is already at/near the bottom",
+    "Optional: prettify interval labels on the virtual card panel (PER_TRANSACTION -> per transaction)"
+  ],
+  "critical_code_review_comments": [
+    "server.Run._set: sets status then pending under the lock, but the DB write for 'pending' is not persisted (pending is only in memory). On a backend reload mid-run the run is marked interrupted which is fine, but any client that fetches /api/runs/{id} after the restart would never see the previous pending. That is consistent with the design.",
+    "useRun.decide: optimistically clears pending locally before the SSE 'state' event arrives; good, and the approve/decline buttons are only mounted while run.pending is set, so no double-submit of the same digest in practice.",
+    "Purchases.jsx: compare checkbox is a native <input> hidden off-screen (sr-only); clicking programmatically works. No keyboard regression seen (label wraps the input)."
+  ],
+  "updated_files": ["/app/backend/tests/test_leash_api.py"],
+  "success_rate": {"backend": "100% (9/9 pytest tests)", "frontend": "100% functional; 3 minor design issues"},
+  "test_credentials": "None. No login. LEASH_* and Airwallex sandbox already in the backend process env; EMERGENT_LLM_KEY in backend/.env.",
+  "seed_data_creation": "Two new sandbox runs created (manual a1d7412803c4, auto edc046188712). Nothing seeded in Mongo manually.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Editing any file under /app/backend while a run is live kills the run (uvicorn --reload). Run pytest with PYTHONDONTWRITEBYTECODE=1 -p no:cacheprovider and export REACT_APP_BACKEND_URL from frontend/.env before invoking pytest. The purchase-pick checkbox is a visually-hidden <input>; use el.click() via page.evaluate or click the surrounding .pick label. Spec and implementation now use digest-bound approvals (POST /api/runs/{id}/approval requires both 'approved' and 'digest'); the old test file was updated accordingly."
+}

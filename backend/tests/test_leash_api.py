@@ -1,4 +1,4 @@
-# Leash web API tests (non-run-starting endpoints; run-starting flows are tested via UI to limit sandbox usage)
+# Leash web API tests. Non-run-starting endpoints only: live run flows are covered via the UI test to limit sandbox usage.
 import os
 import pytest
 import requests
@@ -11,7 +11,7 @@ def s():
     return requests.Session()
 
 
-# Health
+# ---------------- Health ----------------
 def test_health(s):
     r = s.get(f"{BASE_URL}/api/health")
     assert r.status_code == 200
@@ -22,7 +22,38 @@ def test_health(s):
     assert isinstance(d["model"], str) and d["model"]
 
 
-# Latest run snapshot shape
+# ---------------- Context ----------------
+def test_context_shape(s):
+    r = s.get(f"{BASE_URL}/api/context")
+    assert r.status_code == 200
+    d = r.json()
+    for k in ("quote_text", "policy", "operating_cash", "cash_plan", "approver", "auto_answers"):
+        assert k in d, f"missing {k}"
+    assert d["policy"]["auto_approve_max"] == 5000
+    assert d["policy"]["reserve_floor"] == 25000
+    assert d["policy"]["horizon_weeks"] == 12
+    assert isinstance(d["cash_plan"], list) and d["cash_plan"]
+    assert isinstance(d["auto_answers"], list)
+
+
+# ---------------- Runs list shape ----------------
+def test_runs_list_shape(s):
+    r = s.get(f"{BASE_URL}/api/runs")
+    assert r.status_code == 200
+    arr = r.json()
+    assert isinstance(arr, list)
+    if not arr:
+        pytest.skip("no runs yet")
+    row = arr[0]
+    for k in ("id", "seq", "auto", "started_at", "finished_at", "status", "model", "summary"):
+        assert k in row, f"missing {k}"
+    assert "events" not in row
+    assert "_id" not in row
+    for k in ("vendor", "chosen", "plan", "card_id", "card_status", "rows", "unexpected", "approvals", "scene"):
+        assert k in row["summary"], f"summary missing {k}"
+
+
+# ---------------- Latest snapshot ----------------
 def test_latest_shape(s):
     r = s.get(f"{BASE_URL}/api/runs/latest")
     assert r.status_code == 200
@@ -34,7 +65,7 @@ def test_latest_shape(s):
     assert d["total"] == len(d["events"])
 
 
-# Pagination with after=n
+# ---------------- Pagination ----------------
 def test_get_run_after(s):
     d = s.get(f"{BASE_URL}/api/runs/latest").json()
     if not d:
@@ -46,26 +77,41 @@ def test_get_run_after(s):
     assert p["events"] == d["events"][5:]
 
 
-# Unknown run
+# ---------------- Unknown run ----------------
 def test_unknown_run_404(s):
     assert s.get(f"{BASE_URL}/api/runs/doesnotexist").status_code == 404
-    assert s.post(f"{BASE_URL}/api/runs/doesnotexist/approval", json={"approved": True}).status_code == 404
+    r = s.post(f"{BASE_URL}/api/runs/doesnotexist/approval", json={"approved": True, "digest": "x"})
+    assert r.status_code == 404
 
 
-# Approval with nothing pending
+# ---------------- Stream for a non-live run 404 ----------------
+def test_stream_non_live_404(s):
+    d = s.get(f"{BASE_URL}/api/runs/latest").json()
+    if not d:
+        pytest.skip("no runs yet")
+    if d["status"] in ("running", "waiting_approval"):
+        pytest.skip("latest is live")
+    r = s.get(f"{BASE_URL}/api/runs/{d['id']}/stream")
+    assert r.status_code == 404
+
+
+# ---------------- Approval with nothing pending ----------------
 def test_approval_no_pending_409(s):
     d = s.get(f"{BASE_URL}/api/runs/latest").json()
     if not d or d["status"] == "waiting_approval":
         pytest.skip("not applicable")
-    r = s.post(f"{BASE_URL}/api/runs/{d['id']}/approval", json={"approved": True})
+    r = s.post(f"{BASE_URL}/api/runs/{d['id']}/approval", json={"approved": True, "digest": "abc"})
     assert r.status_code == 409
     assert "pending" in r.json()["detail"]
 
 
-# Validation
+# ---------------- Validation ----------------
 def test_approval_validation_422(s):
     d = s.get(f"{BASE_URL}/api/runs/latest").json()
     if not d:
         pytest.skip("no runs yet")
     r = s.post(f"{BASE_URL}/api/runs/{d['id']}/approval", json={})
+    assert r.status_code == 422
+    # missing digest only is also 422
+    r = s.post(f"{BASE_URL}/api/runs/{d['id']}/approval", json={"approved": True})
     assert r.status_code == 422
