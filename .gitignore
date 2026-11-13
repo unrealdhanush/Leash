@@ -23,3 +23,8 @@ wheels/
 
 # Web UI
 node_modules/
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
